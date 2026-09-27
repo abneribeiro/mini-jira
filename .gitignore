@@ -1,0 +1,52 @@
+# Binaries
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Build output
+
+/bin/
+/build/
+dist/
+
+# Air
+
+tmp
+
+# Go workspace
+
+go.work
+go.work.sum
+
+# Test coverage
+
+coverage.out
+coverage.html
+coverage.txt
+
+# IDEs and editors
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+
+.DS_Store
+
+# Logs
+
+*.log
+
+# Environment variables
+
+.env
+.env.*
+!.env.example
