@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: mini-jira-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mini_jira
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+volumes:
+  postgres_data:
