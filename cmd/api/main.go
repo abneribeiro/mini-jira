@@ -33,7 +33,7 @@ func main() {
 
 	defer db.Close()
 	
-	srv := server.New()
+	srv := server.New(db)
 
 	log.Printf("server running on port %s", cfg.AppPort)
 	if err := http.ListenAndServe(":"+cfg.AppPort, srv); err != nil {
