@@ -9,7 +9,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var ErrInvalidUser = errors.New("invalid user data")
+var (
+	ErrInvalidUser        = errors.New("invalid user data")
+	ErrEmailAlreadyExists = errors.New("unable to create account")
+)
 
 type Service interface {
 	Create(ctx context.Context, input CreateInput) (User, error)
@@ -48,5 +51,13 @@ func (s *service) Create(ctx context.Context, input CreateInput) (User, error) {
 
 	input.Password = string(hashedPassword)
 
-	return s.repo.Create(ctx, input)
+	createdUser, err := s.repo.Create(ctx, input)
+	if err != nil {
+		if strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "users_email_key") {
+			return User{}, ErrEmailAlreadyExists
+		}
+		return User{}, fmt.Errorf("failed to save user: %w", err)
+	}
+
+	return createdUser, nil
 }
