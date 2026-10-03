@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-
 type User struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
@@ -19,7 +18,13 @@ type User struct {
 type CreateInput struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
-	Password string `json:"password"` 
+	Password string `json:"password"`
+}
+
+type UpdateInput struct {
+	Name     *string `json:"name"`
+	Email    *string `json:"email"`
+	Password *string `json:"password"`
 }
 
 func validateUser(name, email string) error {
