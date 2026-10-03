@@ -28,7 +28,6 @@ func (r *repository) Create(ctx context.Context, input CreateInput) (Task, error
 	`
 
 	var t Task
-	// QueryRow é usado para retornar apenas 1 linha
 	err := r.db.QueryRow(ctx, query,
 		input.Title,
 		input.Description,
@@ -46,7 +45,6 @@ func (r *repository) Create(ctx context.Context, input CreateInput) (Task, error
 	)
 
 	if err != nil {
-		// Retornamos um objecto Task vazio e o erro formatado
 		return Task{}, fmt.Errorf("repository.Create: failed to insert task: %w", err)
 	}
 
