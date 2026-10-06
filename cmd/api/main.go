@@ -32,8 +32,8 @@ func main() {
 	}
 
 	defer db.Close()
-	
-	srv := server.New(db)
+
+	srv := server.New(db, cfg.JWTSecret)
 
 	log.Printf("server running on port %s", cfg.AppPort)
 	if err := http.ListenAndServe(":"+cfg.AppPort, srv); err != nil {
