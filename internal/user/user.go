@@ -1,13 +1,18 @@
 package user
 
 import (
+	"errors"
 	"fmt"
 	"net/mail"
 	"time"
+
+	"github.com/google/uuid"
 )
 
+var ErrInvalidUser = errors.New("invalid user data")
+
 type User struct {
-	ID        int64     `json:"id"`
+	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	Password  string    `json:"-"`
