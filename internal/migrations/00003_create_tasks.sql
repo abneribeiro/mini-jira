@@ -1,16 +1,16 @@
 -- +goose Up
 
 CREATE TABLE tasks (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'TODO',
 
-    project_id BIGINT NOT NULL
+    project_id UUID NOT NULL
         REFERENCES projects(id)
         ON DELETE CASCADE,
 
-    assignee_id BIGINT
+    assignee_id UUID
         REFERENCES users(id)
         ON DELETE SET NULL,
 
