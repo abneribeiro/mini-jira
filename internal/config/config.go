@@ -9,8 +9,9 @@ import (
 )
 
 type Config struct {
-	AppPort string
+	AppPort     string
 	DatabaseURL string
+	JWTSecret   string
 }
 
 func Load() (Config, error)  {
@@ -26,13 +27,20 @@ func Load() (Config, error)  {
 	}
 
 	datbaseUrl := os.Getenv("DATABASE_URL")
-	
+
 	if datbaseUrl == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+
+	if jwtSecret == "" {
+		return Config{}, fmt.Errorf("JWT_SECRET is required")
+	}
+
 	return Config{
-		AppPort: appPort,
+		AppPort:     appPort,
 		DatabaseURL: datbaseUrl,
+		JWTSecret:   jwtSecret,
 	}, nil
 }
