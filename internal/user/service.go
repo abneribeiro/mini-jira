@@ -6,17 +6,20 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	ErrInvalidUser        = errors.New("invalid user data")
 	ErrEmailAlreadyExists = errors.New("unable to create account")
 )
 
 type Service interface {
 	Create(ctx context.Context, input CreateInput) (User, error)
-	Update(ctx context.Context, id int64, input UpdateInput) (User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (User, error)
+	List(ctx context.Context) ([]User, error)
+	Update(ctx context.Context, id uuid.UUID, input UpdateInput) (User, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type service struct {
@@ -52,7 +55,13 @@ func (s *service) Create(ctx context.Context, input CreateInput) (User, error) {
 
 	input.Password = string(hashedPassword)
 
-	createdUser, err := s.repo.Create(ctx, input)
+	newId, err := uuid.NewV7()
+
+	if err != nil {
+		return User{}, fmt.Errorf("failed to generate uuid: %w", err)
+	}
+
+	createdUser, err := s.repo.Create(ctx, newId, input)
 	if err != nil {
 		if strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "users_email_key") {
 			return User{}, ErrEmailAlreadyExists
@@ -64,9 +73,9 @@ func (s *service) Create(ctx context.Context, input CreateInput) (User, error) {
 }
 
 
-func (s *service) Update(ctx context.Context, id int64,  input UpdateInput) (User, error) {
+func (s *service) Update(ctx context.Context, id uuid.UUID,  input UpdateInput) (User, error) {
 
-	if id <= 0 {
+	if id == uuid.Nil {
 		return User{}, fmt.Errorf("%w: invalid user ID", ErrInvalidUser)
 	}
 
@@ -82,11 +91,31 @@ func (s *service) Update(ctx context.Context, id int64,  input UpdateInput) (Use
 		hashedStr := string(hashBytes)
 		input.Password = &hashedStr
 	}
-	
+
 	updateUser, err := s.repo.Update(ctx, id , input);
 	if err != nil {
 		return User{}, fmt.Errorf("failed to save user: %w", err)
 	}
 
 	return  updateUser, nil
+}
+
+func (s *service) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
+	if id == uuid.Nil {
+		return User{}, fmt.Errorf("%w: invalid user ID", ErrInvalidUser)
+	}
+
+	return s.repo.GetByID(ctx, id)
+}
+
+func (s *service) List(ctx context.Context) ([]User, error) {
+	return s.repo.List(ctx)
+}
+
+func (s *service) Delete(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return fmt.Errorf("%w: invalid user ID", ErrInvalidUser)
+	}
+
+	return s.repo.Delete(ctx, id)
 }
