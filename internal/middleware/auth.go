@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/abneribeiro/internal/jwt"
@@ -29,7 +30,9 @@ func AuthMiddleware(jwtManager *jwt.Manager) func(http.Handler) http.Handler {
 			tokenString := authHeader[7:]
 			claims, err := jwtManager.ValidateToken(tokenString)
 			if err != nil {
-				http.Error(w, `{"error": "invalid or expired token"}`, http.StatusUnauthorized)
+				// http.Error(w, `{"error": "invalid or expired token"}`, http.StatusUnauthorized)
+				msg := fmt.Sprintf(`{"error": "invalid authorization header format: %s"}`, err.Error())
+				http.Error(w, msg, http.StatusUnauthorized)
 				return
 			}
 
