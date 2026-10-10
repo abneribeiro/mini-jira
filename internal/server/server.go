@@ -29,10 +29,11 @@ func New(db *pgxpool.Pool, jwtSecret string) http.Handler {
 
 	// Public routes
 	r.Mount("/auth", auth.Routes(db, jwtSecret))
-	r.Mount("/users", user.Routes(db))
-
+	
 	// Protected routes
 	jwtManager := jwt.NewManager(jwtSecret)
+	r.Mount("/users", user.Routes(db,jwtManager ))
+	
 	r.Group(func(r chi.Router) {
 		r.Use(authmiddleware.AuthMiddleware(jwtManager))
 		r.Mount("/tasks", task.Routes(db))

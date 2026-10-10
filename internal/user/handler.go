@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/abneribeiro/internal/jwt"
+	authmiddleware "github.com/abneribeiro/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,7 +20,7 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Routes( db *pgxpool.Pool) chi.Router {
+func Routes( db *pgxpool.Pool, jwtManager *jwt.Manager) chi.Router {
 	repo := NewRepository(db)
 	service := NewService(repo)
 	handler := NewHandler(service)
@@ -26,10 +28,13 @@ func Routes( db *pgxpool.Pool) chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/", handler.CreateUser)
-	r.Get("/", handler.ListUsers)
-	r.Get("/{id}", handler.GetUser)
-	r.Put("/{id}", handler.UpdateUser)
-	r.Delete("/{id}", handler.DeleteUser)
+	r.Group(func(r chi.Router) {
+		r.Use(authmiddleware.AuthMiddleware(jwtManager))
+		r.Get("/", handler.ListUsers)
+		r.Get("/{id}", handler.GetUser)
+		r.Put("/{id}", handler.UpdateUser)
+		r.Delete("/{id}", handler.DeleteUser)
+	})
 
 	return r
 }
