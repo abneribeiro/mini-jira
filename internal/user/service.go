@@ -72,8 +72,7 @@ func (s *service) Create(ctx context.Context, input CreateInput) (User, error) {
 	return createdUser, nil
 }
 
-
-func (s *service) Update(ctx context.Context, id uuid.UUID,  input UpdateInput) (User, error) {
+func (s *service) Update(ctx context.Context, id uuid.UUID, input UpdateInput) (User, error) {
 
 	if id == uuid.Nil {
 		return User{}, fmt.Errorf("%w: invalid user ID", ErrInvalidUser)
@@ -92,12 +91,12 @@ func (s *service) Update(ctx context.Context, id uuid.UUID,  input UpdateInput) 
 		input.Password = &hashedStr
 	}
 
-	updateUser, err := s.repo.Update(ctx, id , input);
+	updateUser, err := s.repo.Update(ctx, id, input)
 	if err != nil {
 		return User{}, fmt.Errorf("failed to save user: %w", err)
 	}
 
-	return  updateUser, nil
+	return updateUser, nil
 }
 
 func (s *service) GetByID(ctx context.Context, id uuid.UUID) (User, error) {

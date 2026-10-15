@@ -2,10 +2,12 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -103,7 +105,7 @@ func (r *repository) Update(ctx context.Context, id uuid.UUID, input UpdateInput
 	)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return User{}, fmt.Errorf("repository.Update: user with id %s not found", id)
 		}
 		return User{}, fmt.Errorf("repository.Update: failed to update user: %w", err)
@@ -130,7 +132,7 @@ func (r *repository) GetByEmail(ctx context.Context, email string) (User, error)
 	)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return User{}, fmt.Errorf("repository.GetByEmail: user with email %s not found", email)
 		}
 		return User{}, fmt.Errorf("repository.GetByEmail: failed to get user: %w", err)
@@ -156,7 +158,7 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 	)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return User{}, fmt.Errorf("repository.GetByID: user with id %s not found", id)
 		}
 		return User{}, fmt.Errorf("repository.GetByID: failed to get user: %w", err)
@@ -178,7 +180,7 @@ func (r *repository) List(ctx context.Context) ([]User, error) {
 	}
 	defer rows.Close()
 
-	var users []User
+	users := make([]User, 0)
 	for rows.Next() {
 		var u User
 		if err := rows.Scan(

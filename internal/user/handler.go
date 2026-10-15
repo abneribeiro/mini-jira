@@ -20,7 +20,7 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Routes( db *pgxpool.Pool, jwtManager *jwt.Manager) chi.Router {
+func Routes(db *pgxpool.Pool, jwtManager *jwt.Manager) chi.Router {
 	repo := NewRepository(db)
 	service := NewService(repo)
 	handler := NewHandler(service)
@@ -69,7 +69,6 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
 
 func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	var input UpdateInput
