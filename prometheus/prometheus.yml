@@ -10,5 +10,5 @@ scrape_configs:
   # ADICIONAMOS A SUA API GO AQUI
   - job_name: minijira_api
     static_configs:
-      # host.docker.internal permite ao Docker ler a porta 8083 do seu PC
-      - targets: ["host.docker.internal:8083"]
+      # host.docker.internal permite ao Docker ler a porta 8080 do seu PC
+      - targets: ["host.docker.internal:8080"]
