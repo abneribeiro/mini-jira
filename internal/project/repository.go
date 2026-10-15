@@ -2,10 +2,12 @@ package project
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -69,7 +71,7 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (Project, error)
 	)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return Project{}, fmt.Errorf("repository.GetByID: project with id %s not found", id)
 		}
 		return Project{}, fmt.Errorf("repository.GetByID: failed to get project: %w", err)
@@ -91,7 +93,7 @@ func (r *repository) List(ctx context.Context) ([]Project, error) {
 	}
 	defer rows.Close()
 
-	var projects []Project
+	projects := make([]Project, 0)
 	for rows.Next() {
 		var p Project
 		if err := rows.Scan(
@@ -155,7 +157,7 @@ func (r *repository) Update(ctx context.Context, id uuid.UUID, input UpdateInput
 	)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return Project{}, fmt.Errorf("repository.Update: project with id %s not found", id)
 		}
 		return Project{}, fmt.Errorf("repository.Update: failed to update project: %w", err)
