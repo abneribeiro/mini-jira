@@ -1,9 +1,11 @@
 package auth
 
 import (
-	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 
+	"github.com/abneribeiro/internal/httpx"
 	"github.com/abneribeiro/internal/jwt"
 	"github.com/abneribeiro/internal/user"
 	"github.com/go-chi/chi/v5"
@@ -18,9 +20,8 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Routes(db *pgxpool.Pool, jwtSecret string) chi.Router {
+func Routes(db *pgxpool.Pool, jwtManager *jwt.Manager) chi.Router {
 	userRepo := user.NewRepository(db)
-	jwtManager := jwt.NewManager(jwtSecret)
 	service := NewService(userRepo, jwtManager)
 	handler := NewHandler(service)
 
@@ -33,33 +34,24 @@ func Routes(db *pgxpool.Pool, jwtSecret string) chi.Router {
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var input LoginInput
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "invalid request format"}`))
+	if err := httpx.DecodeJSON(w, r, &input); err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, httpx.CodeInvalidRequest, "invalid request format")
 		return
 	}
-	defer r.Body.Close()
 
 	response, err := h.service.Login(r.Context(), input)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		if err == ErrInvalidCredentials || err == ErrUserNotFound {
-			w.WriteHeader(http.StatusUnauthorized)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+		// Both credential failures share one message so the response cannot be
+		// used to tell a missing account from a wrong password.
+		if errors.Is(err, ErrInvalidCredentials) || errors.Is(err, ErrUserNotFound) {
+			httpx.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "invalid credentials")
+			return
 		}
-		w.Write([]byte(`{"error": "invalid credentials"}`))
+
+		slog.ErrorContext(r.Context(), "login failed", "error", err)
+		httpx.WriteError(w, http.StatusInternalServerError, httpx.CodeInternal, "internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "failed to encode response"}`))
-		return
-	}
+	httpx.WriteJSON(w, http.StatusOK, response)
 }
