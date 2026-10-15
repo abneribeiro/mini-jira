@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/abneribeiro/internal/jwt"
+	"github.com/google/uuid"
 )
 
 type contextKey string
@@ -44,8 +45,8 @@ func AuthMiddleware(jwtManager *jwt.Manager) func(http.Handler) http.Handler {
 	}
 }
 
-func GetUserIDFromContext(ctx context.Context) (int64, bool) {
-	userID, ok := ctx.Value(UserIDKey).(int64)
+func GetUserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	userID, ok := ctx.Value(UserIDKey).(uuid.UUID)
 	return userID, ok
 }
 

@@ -17,7 +17,7 @@ type LoginInput struct {
 }
 
 type LoginResponse struct {
-	Token string    `json:"token"`
+	Token  string    `json:"token"`
 	UserID uuid.UUID `json:"user_id"`
 	Email  string    `json:"email"`
 }
