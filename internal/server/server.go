@@ -29,11 +29,10 @@ func New(db *pgxpool.Pool, jwtSecret string) http.Handler {
 
 	// Public routes
 	r.Mount("/auth", auth.Routes(db, jwtSecret))
-	
 	// Protected routes
 	jwtManager := jwt.NewManager(jwtSecret)
-	r.Mount("/users", user.Routes(db,jwtManager ))
-	
+	r.Mount("/users", user.Routes(db, jwtManager))
+
 	r.Group(func(r chi.Router) {
 		r.Use(authmiddleware.AuthMiddleware(jwtManager))
 		r.Mount("/tasks", task.Routes(db))
@@ -50,4 +49,3 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 	})
 }
-

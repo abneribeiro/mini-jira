@@ -18,7 +18,7 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Routes( db *pgxpool.Pool) chi.Router {
+func Routes(db *pgxpool.Pool) chi.Router {
 	repo := NewRepository(db)
 	service := NewService(repo)
 	handler := NewHandler(service)

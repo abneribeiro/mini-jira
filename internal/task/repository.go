@@ -2,10 +2,12 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -77,7 +79,7 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (Task, error) {
 	)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return Task{}, fmt.Errorf("repository.GetByID: task with id %s not found", id)
 		}
 		return Task{}, fmt.Errorf("repository.GetByID: failed to get task: %w", err)
@@ -99,7 +101,7 @@ func (r *repository) List(ctx context.Context) ([]Task, error) {
 	}
 	defer rows.Close()
 
-	var tasks []Task
+	tasks := make([]Task, 0)
 	for rows.Next() {
 		var t Task
 		if err := rows.Scan(
@@ -147,9 +149,11 @@ func (r *repository) Update(ctx context.Context, id uuid.UUID, input UpdateInput
 		argID++
 	}
 
-	if input.AssigneeID != nil {
+	// .Set is true for both an explicit UUID and an explicit null, so
+	// "assignee_id": null clears the column instead of being ignored.
+	if input.AssigneeID.Set {
 		setClauses = append(setClauses, fmt.Sprintf("assignee_id = $%d", argID))
-		args = append(args, *input.AssigneeID)
+		args = append(args, input.AssigneeID.Value)
 		argID++
 	}
 
@@ -181,7 +185,7 @@ func (r *repository) Update(ctx context.Context, id uuid.UUID, input UpdateInput
 	)
 
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return Task{}, fmt.Errorf("repository.Update: task with id %s not found", id)
 		}
 		return Task{}, fmt.Errorf("repository.Update: failed to update task: %w", err)
