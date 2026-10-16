@@ -2,23 +2,18 @@ package user
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	ErrEmailAlreadyExists = errors.New("unable to create account")
-)
-
 type Service interface {
 	Create(ctx context.Context, input CreateInput) (User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (User, error)
-	List(ctx context.Context) ([]User, error)
+	List(ctx context.Context, filter ListFilter) ([]User, error)
 	Update(ctx context.Context, id uuid.UUID, input UpdateInput) (User, error)
+	UpdateRole(ctx context.Context, id uuid.UUID, role string) (User, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -31,72 +26,65 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) Create(ctx context.Context, input CreateInput) (User, error) {
+	input.Email = NormalizeEmail(input.Email)
 
-	if strings.TrimSpace(input.Name) == "" || validateUser(input.Name, input.Email) != nil {
-		return User{}, fmt.Errorf("%w: name is required", ErrInvalidUser)
+	if err := validateUser(input.Name, input.Email); err != nil {
+		return User{}, err
 	}
 
-	if strings.TrimSpace(input.Email) == "" || validateUser(input.Name, input.Email) != nil {
-		return User{}, fmt.Errorf("%w: invalid email or name", ErrInvalidUser)
-	}
-
-	if strings.TrimSpace(input.Password) == "" {
-		return User{}, fmt.Errorf("%w: password is required", ErrInvalidUser)
-	}
-
-	if len(strings.TrimSpace(input.Password)) < 8 {
-		return User{}, fmt.Errorf("%w: password must be at least 8 characters", ErrInvalidUser)
+	if err := validatePassword(input.Password); err != nil {
+		return User{}, err
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return User{}, fmt.Errorf("%w: failed to hash password", ErrInvalidUser)
+		return User{}, fmt.Errorf("service.Create: hash password: %w", err)
 	}
-
 	input.Password = string(hashedPassword)
 
-	newId, err := uuid.NewV7()
-
+	newID, err := uuid.NewV7()
 	if err != nil {
-		return User{}, fmt.Errorf("failed to generate uuid: %w", err)
+		return User{}, fmt.Errorf("service.Create: generate uuid: %w", err)
 	}
 
-	createdUser, err := s.repo.Create(ctx, newId, input)
-	if err != nil {
-		if strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "users_email_key") {
-			return User{}, ErrEmailAlreadyExists
-		}
-		return User{}, fmt.Errorf("failed to save user: %w", err)
-	}
-
-	return createdUser, nil
+	return s.repo.Create(ctx, newID, input)
 }
 
 func (s *service) Update(ctx context.Context, id uuid.UUID, input UpdateInput) (User, error) {
-
 	if id == uuid.Nil {
 		return User{}, fmt.Errorf("%w: invalid user ID", ErrInvalidUser)
 	}
 
+	// Every rule enforced on Create applies here too; each field is validated
+	// independently because a partial update only carries the fields it sets.
+	if input.Name != nil {
+		if err := validateName(*input.Name); err != nil {
+			return User{}, err
+		}
+	}
+
+	if input.Email != nil {
+		normalized := NormalizeEmail(*input.Email)
+		if err := validateEmail(normalized); err != nil {
+			return User{}, err
+		}
+		input.Email = &normalized
+	}
+
 	if input.Password != nil {
-		if len(strings.TrimSpace(*input.Password)) < 8 {
-			return User{}, fmt.Errorf("%w: password must be at least 8 characters", ErrInvalidUser)
+		if err := validatePassword(*input.Password); err != nil {
+			return User{}, err
 		}
 
 		hashBytes, err := bcrypt.GenerateFromPassword([]byte(*input.Password), bcrypt.DefaultCost)
 		if err != nil {
-			return User{}, fmt.Errorf("service.Update: failed to hash new password: %w", err)
+			return User{}, fmt.Errorf("service.Update: hash new password: %w", err)
 		}
 		hashedStr := string(hashBytes)
 		input.Password = &hashedStr
 	}
 
-	updateUser, err := s.repo.Update(ctx, id, input)
-	if err != nil {
-		return User{}, fmt.Errorf("failed to save user: %w", err)
-	}
-
-	return updateUser, nil
+	return s.repo.Update(ctx, id, input)
 }
 
 func (s *service) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -107,8 +95,31 @@ func (s *service) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *service) List(ctx context.Context) ([]User, error) {
-	return s.repo.List(ctx)
+func (s *service) List(ctx context.Context, filter ListFilter) ([]User, error) {
+	switch {
+	case filter.Limit <= 0:
+		filter.Limit = DefaultListLimit
+	case filter.Limit > MaxListLimit:
+		return nil, fmt.Errorf("%w: limit must be at most %d", ErrInvalidUser, MaxListLimit)
+	}
+
+	if filter.Offset < 0 {
+		return nil, fmt.Errorf("%w: offset must not be negative", ErrInvalidUser)
+	}
+
+	return s.repo.List(ctx, filter)
+}
+
+func (s *service) UpdateRole(ctx context.Context, id uuid.UUID, role string) (User, error) {
+	if id == uuid.Nil {
+		return User{}, fmt.Errorf("%w: invalid user ID", ErrInvalidUser)
+	}
+
+	if err := validateRole(role); err != nil {
+		return User{}, err
+	}
+
+	return s.repo.UpdateRole(ctx, id, role)
 }
 
 func (s *service) Delete(ctx context.Context, id uuid.UUID) error {
