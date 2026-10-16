@@ -125,7 +125,13 @@ func RecordLoginAttempt(result string) {
 	loginAttemptsTotal.WithLabelValues(result).Inc()
 }
 
-// GetRegistry returns the prometheus registry
-func GetRegistry() *prometheus.Registry {
-	return prometheus.NewRegistry()
+// ObserveQuery times one repository call. Usage:
+//
+//	defer metrics.ObserveQuery("select", "tasks")()
+func ObserveQuery(operation, table string) func() {
+	start := time.Now()
+
+	return func() {
+		RecordDBQuery(operation, table, time.Since(start))
+	}
 }
