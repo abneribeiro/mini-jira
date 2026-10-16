@@ -1,14 +1,13 @@
 global:
-  scrape_interval: 5s # Mudei para 5s para ver os dados a entrar mais rápido no Grafana!
+  scrape_interval: 15s
 
 scrape_configs:
-  # Mantemos o Prometheus a monitorizar-se a si próprio
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
 
-  # ADICIONAMOS A SUA API GO AQUI
+  # The API's private metrics listener. Port 9091 is not published to the
+  # host, so this is reachable from inside the compose network only.
   - job_name: minijira_api
     static_configs:
-      # host.docker.internal permite ao Docker ler a porta 8080 do seu PC
-      - targets: ["host.docker.internal:8080"]
+      - targets: ["api:9091"]
