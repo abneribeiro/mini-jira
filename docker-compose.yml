@@ -11,6 +11,51 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mini_jira"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Runs the migrations once and exits. The API waits for it to finish, so
+  # the schema is never modified during normal startup.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mini-jira-migrate
+    entrypoint: ["/app/migrate"]
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/mini_jira?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mini-jira-api
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      METRICS_PORT: "9091"
+      APP_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/mini_jira?sslmode=disable
+      # Override in a real deployment. config.Load refuses anything under 32
+      # characters.
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me-32+}
+    ports:
+      # Only the public API is published. 9091 is deliberately absent: the
+      # metrics listener stays reachable on the compose network and nowhere
+      # else.
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   prometheus:
     image: prom/prometheus:latest
@@ -18,8 +63,6 @@ services:
     restart: unless-stopped
     ports:
       - "9090:9090"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -27,7 +70,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     depends_on:
-      - postgres
+      - api
 
   grafana:
     image: grafana/grafana:latest

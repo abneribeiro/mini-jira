@@ -1,0 +1,12 @@
+.git
+.github
+tmp
+*.md
+!minijira.md
+.env
+.env.*
+!.env.example
+grafana
+prometheus
+coverage.*
+*_test.go
