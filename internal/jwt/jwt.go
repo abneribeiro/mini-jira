@@ -12,6 +12,12 @@ import (
 var ErrInvalidToken = errors.New("invalid token")
 var ErrExpiredToken = errors.New("token expired")
 
+// AccessTokenTTL is deliberately short. Access tokens are stateless and
+// cannot be revoked individually; the refresh token is the revocable
+// credential, so the window in which a stolen access token is useful has to
+// stay small.
+const AccessTokenTTL = 15 * time.Minute
+
 type Manager struct {
 	secret string
 }
@@ -19,6 +25,7 @@ type Manager struct {
 type Claims struct {
 	UserID uuid.UUID `json:"user_id"`
 	Email  string    `json:"email"`
+	Role   string    `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -26,13 +33,15 @@ func NewManager(secret string) *Manager {
 	return &Manager{secret: secret}
 }
 
-func (m *Manager) GenerateToken(userID uuid.UUID, email string) (string, error) {
+func (m *Manager) GenerateToken(userID uuid.UUID, email, role string) (string, error) {
 	claims := Claims{
 		UserID: userID,
 		Email:  email,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   userID.String(),
 		},
 	}
 
@@ -46,7 +55,7 @@ func (m *Manager) ValidateToken(tokenString string) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(m.secret), nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
