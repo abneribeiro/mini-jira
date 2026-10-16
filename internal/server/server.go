@@ -1,12 +1,14 @@
 package server
 
 import (
-	"encoding/json"
+	"context"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/abneribeiro/internal/auth"
+	"github.com/abneribeiro/internal/httpx"
 	"github.com/abneribeiro/internal/jwt"
-	// "github.com/abneribeiro/internal/metrics"
 	authmiddleware "github.com/abneribeiro/internal/middleware"
 	"github.com/abneribeiro/internal/project"
 	"github.com/abneribeiro/internal/task"
@@ -17,35 +19,94 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func New(db *pgxpool.Pool, jwtSecret string) http.Handler {
+// healthPingTimeout bounds the readiness probe so a hung database cannot hold
+// the health endpoint open.
+const healthPingTimeout = 2 * time.Second
+
+// Deps are what the routers need from main.
+type Deps struct {
+	DB        *pgxpool.Pool
+	JWTSecret string
+	Limiters  auth.Limiters
+}
+
+// New builds the public API. /metrics is deliberately NOT mounted here; it
+// lives on the separate, unpublished listener returned by NewMetrics.
+func New(deps Deps) http.Handler {
 	r := chi.NewRouter()
-	//Add middlewares
-	r.Use(middleware.Logger)
+
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(authmiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(authmiddleware.MetricsMiddleware)
 
-	r.Get("/health", healthHandler)
-	r.Get("/metrics", promhttp.Handler().ServeHTTP)
+	r.Get("/health", healthHandler(deps.DB))
+	r.Get("/livez", livezHandler)
+
+	// One manager for the whole app: two instances would drift the moment
+	// issuer, TTL or key rotation becomes configurable.
+	jwtManager := jwt.NewManager(deps.JWTSecret)
 
 	// Public routes
-	r.Mount("/auth", auth.Routes(db, jwtSecret))
-	// Protected routes
-	jwtManager := jwt.NewManager(jwtSecret)
-	r.Mount("/users", user.Routes(db, jwtManager))
+	r.Mount("/auth", auth.Routes(deps.DB, jwtManager, deps.Limiters))
 
+	// Mixed: POST /users is public registration, the rest are protected
+	// inside user.Routes.
+	r.Mount("/users", user.Routes(deps.DB, jwtManager))
+
+	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(authmiddleware.AuthMiddleware(jwtManager))
-		r.Mount("/tasks", task.Routes(db))
-		r.Mount("/projects", project.Routes(db))
+		r.Mount("/tasks", task.Routes(deps.DB))
+		r.Mount("/projects", project.Routes(deps.DB))
 	})
 
 	return r
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
-	})
+// NewMetrics builds the private operator surface. It is served on its own
+// listener that the Compose file does not publish to the host, so the
+// exposition — route inventory, traffic volumes, Go runtime internals — is
+// reachable from Prometheus on the internal network and from nowhere else.
+func NewMetrics(db *pgxpool.Pool) http.Handler {
+	r := chi.NewRouter()
+
+	r.Use(middleware.Recoverer)
+
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
+	r.Get("/health", healthHandler(db))
+	r.Get("/livez", livezHandler)
+
+	return r
+}
+
+// healthHandler is a readiness probe: it reports unhealthy when the database
+// is unreachable, instead of claiming "ok" while every request 500s.
+func healthHandler(db *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), healthPingTimeout)
+		defer cancel()
+
+		if err := db.Ping(ctx); err != nil {
+			slog.ErrorContext(r.Context(), "health check: database unreachable", "error", err)
+			httpx.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"status":   "degraded",
+				"database": "unreachable",
+			})
+			return
+		}
+
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{
+			"status":   "ok",
+			"database": "ok",
+		})
+	}
+}
+
+// livezHandler is a liveness probe: it answers as long as the process can
+// serve, regardless of dependencies.
+func livezHandler(w http.ResponseWriter, _ *http.Request) {
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
