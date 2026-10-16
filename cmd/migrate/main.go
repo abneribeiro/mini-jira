@@ -13,12 +13,12 @@ import (
 
 func main() {
 
-	cfg, err := config.Load()
+	databaseURL, err := config.LoadDatabaseURL()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	db, err := sql.Open("pgx", cfg.DatabaseURL)
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
