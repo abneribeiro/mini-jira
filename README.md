@@ -41,7 +41,7 @@ Each domain (`user`, `project`, `task`, `auth`) is one package holding its model
 |---|---|
 | `internal/authz` | `Scope{UserID, IsAdmin}`: who is calling, passed from middleware down to SQL |
 | `internal/database` | pgx pool setup; translates SQLSTATE `23505` / `23503` into checks the repositories turn into domain errors |
-| `internal/httpx` | JSON responses, the single error envelope, capped body decoding |
+| `internal/httpx` | JSON responses, the single error envelope, strict capped body decoding, path UUID and pagination parsing |
 | `internal/middleware` | JWT authentication, admin guard, rate limiting, structured request logs, metrics |
 | `internal/server` | Router assembly, `/health`, `/livez`, and the private metrics router |
 | `internal/jwt` | HS256 access token issue and validation |
@@ -75,15 +75,16 @@ mini-jira/
     authz/               Scope and roles
     config/              environment configuration
     database/            pgx pool, SQLSTATE helpers
-    httpx/               JSON and error envelope helpers
+    httpx/               JSON, error envelope, path and pagination helpers
+      httpxtest/         error envelope assertion for handler tests
     jwt/                 access tokens
     metrics/             Prometheus collectors
-    middleware/          auth, admin guard, rate limit, logging, metrics
+    middleware/          auth, caller scope, admin guard, rate limit, logging, metrics
     migrations/          versioned SQL, embedded with go:embed
     project/             projects domain
     server/              router wiring and probes
     task/                tasks domain
-    testdb/              integration test database helper
+    testdb/              integration test database and user seeding
     user/                users domain
   grafana/               provisioned datasource and dashboard
   prometheus/            scrape configuration
@@ -256,7 +257,7 @@ Every error uses one envelope. `code` is stable and meant for programs; `message
 
 | Code | Status | Meaning |
 |---|---|---|
-| `invalid_request` | 400 | Body is not valid JSON, or a required auth field is missing |
+| `invalid_request` | 400 | Body is not exactly one valid JSON value (trailing data is rejected), or a required auth field is missing |
 | `invalid_id` | 400 | Path ID is not a UUID |
 | `validation_failed` | 400 | A field or query parameter breaks a rule; the message says which |
 | `no_fields_to_update` | 400 | `PUT` with no recognised fields |
@@ -300,11 +301,11 @@ This runs a parameterised `UPDATE users SET role = 'admin'` inside the Postgres 
 | Command | What it runs |
 |---|---|
 | `make test` | Unit tests: services with fake repositories, handlers through `httptest`, pure SQL builders, JWT, httpx, config, server routing. No Docker needed |
-| `make test-race` | The same with the race detector (needs cgo and a C compiler) |
-| `make test-integration` | Starts Postgres, creates and migrates the `mini_jira_test` database, and runs every test with `TEST_DATABASE_URL` set, including the repository tests against real SQL |
+| `make test-race` | The same with the race detector (needs cgo and a C compiler; without one, run `docker run --rm -v "$PWD":/src -w /src golang:1.27 make test-race`, since the alpine image has no gcc) |
+| `make test-integration` | Starts Postgres, creates and migrates the `mini_jira_test` database, and runs every test with `TEST_DATABASE_URL` set, including the repository tests against real SQL. Packages run one at a time (`-p 1`) because they share the database |
 | `make test-all` | `vet` + `test-race` + `test-integration` |
 | `make coverage` | Integration-enabled run producing `coverage.out` and `coverage.html` |
-| `make lint` | `go vet`, gofmt check, and golangci-lint when installed |
+| `make lint` | `go vet`, `gofmt -s` check, and golangci-lint when installed |
 | `make smoke` | `scripts/smoke.sh` against a running API |
 
 Integration tests skip, rather than fail, when `TEST_DATABASE_URL` is unset. They seed their own users and clean up via cascades, but they still write rows, so point them at a dedicated database.

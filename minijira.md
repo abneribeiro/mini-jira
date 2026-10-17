@@ -31,6 +31,8 @@ Repositories return domain errors (`ErrTaskNotFound`, `ErrEmailAlreadyExists`, .
 
 Each domain package keeps its model in a file named after the domain (`user.go`, `project.go`, `task.go`) next to `repository.go`, `service.go` and `handler.go`. `Routes(...)` builds the production stack; an unexported `routes(...)` takes the handler so tests can mount the same routing over a stub service.
 
+Handler plumbing that is identical everywhere is shared: `httpx.URLParamUUID` parses path IDs, `httpx.ParsePagination` reads `limit` and `offset`, and `middleware.RequireScope` returns the authenticated caller. Paging policy is deliberately not shared: each domain keeps its own `DefaultListLimit`, `MaxListLimit` and range checks in its service, so one domain can change its limits without touching the others.
+
 ### Dependencies between domains
 
 `auth` depends on `user` (it reads users to log them in). The reverse dependency is needed once: a password change must revoke the user's refresh tokens. Instead of importing `auth`, the `user` package declares the interface it needs:
@@ -200,7 +202,7 @@ All errors go through `httpx.WriteError`, which marshals:
 - `code` is stable and machine-readable; `message` is for people.
 - Each handler package has one `respondError` that maps domain errors with `errors.Is`. Anything unrecognised becomes `500 internal_error` and is logged with the request path; SQL, constraint names and layer names never reach the client.
 - Unknown routes and wrong methods use the same envelope (`not_found`, `method_not_allowed`), registered on the root router and inherited by mounted sub-routers.
-- `httpx.WriteJSON` marshals before writing the status, so an encoding failure turns into a clean 500 instead of a 200 with a truncated body. Request bodies are capped at 1 MiB.
+- `httpx.WriteJSON` marshals before writing the status, so an encoding failure turns into a clean 500 instead of a 200 with a truncated body. Request bodies are capped at 1 MiB and must contain exactly one JSON value; a second value or trailing garbage is a `400 invalid_request`.
 
 ## Runtime behaviour
 

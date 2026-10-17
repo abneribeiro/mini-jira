@@ -75,11 +75,11 @@ coverage: db-up ## Write coverage.out and coverage.html (includes integration te
 	@go tool cover -func=coverage.out | tail -1
 
 fmt: ## Format all Go sources
-	gofmt -w .
+	gofmt -s -w .
 
-vet: ## Run go vet and fail on unformatted files
+vet: ## Run go vet and fail on files gofmt -s would change
 	go vet ./...
-	@unformatted=$$(gofmt -l .); if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
+	@unformatted=$$(gofmt -s -l .); if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
 
 lint: vet ## Run golangci-lint when installed (vet always runs)
 	@if command -v golangci-lint >/dev/null; then golangci-lint run ./...; else echo "golangci-lint not installed, ran go vet only"; fi
