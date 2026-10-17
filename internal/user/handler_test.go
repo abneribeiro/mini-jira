@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/abneribeiro/internal/authz"
+	"github.com/abneribeiro/internal/httpx/httpxtest"
 	"github.com/abneribeiro/internal/jwt"
 	"github.com/google/uuid"
 )
@@ -86,28 +87,6 @@ func do(t *testing.T, h http.Handler, method, target, body, token string) *httpt
 	return rec
 }
 
-// errorCode decodes the shared envelope and fails if the body is not valid
-// JSON, which is what the old fmt.Fprintf handlers produced for any error
-// containing a quote.
-func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
-	t.Helper()
-
-	var body struct {
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("response body is not valid JSON (%v): %s", err, rec.Body.String())
-	}
-	if body.Error.Message == "" {
-		t.Errorf("error envelope has no message: %s", rec.Body.String())
-	}
-
-	return body.Error.Code
-}
-
 // The defect that motivated the error-handling rework: a missing user on PUT
 // returned 400 with the internal repository string in the body.
 func TestUpdateMissingUserReturns404(t *testing.T) {
@@ -119,7 +98,7 @@ func TestUpdateMissingUserReturns404(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
 	}
-	if code := errorCode(t, rec); code != "user_not_found" {
+	if code := httpxtest.ErrorCode(t, rec); code != "user_not_found" {
 		t.Errorf("code = %q, want user_not_found", code)
 	}
 	if strings.Contains(rec.Body.String(), "repository.") {
@@ -135,7 +114,7 @@ func TestDuplicateEmailReturns409(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Errorf("status = %d, want 409", rec.Code)
 	}
-	if code := errorCode(t, rec); code != "email_already_exists" {
+	if code := httpxtest.ErrorCode(t, rec); code != "email_already_exists" {
 		t.Errorf("code = %q, want email_already_exists", code)
 	}
 }
@@ -158,7 +137,7 @@ func TestCrossUserMutationIsForbidden(t *testing.T) {
 			if rec.Code != http.StatusForbidden {
 				t.Errorf("status = %d, want 403", rec.Code)
 			}
-			if code := errorCode(t, rec); code != "forbidden" {
+			if code := httpxtest.ErrorCode(t, rec); code != "forbidden" {
 				t.Errorf("code = %q, want forbidden", code)
 			}
 		})
@@ -221,7 +200,7 @@ func TestMalformedInputs(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400", rec.Code)
 		}
-		if code := errorCode(t, rec); code != "invalid_id" {
+		if code := httpxtest.ErrorCode(t, rec); code != "invalid_id" {
 			t.Errorf("code = %q, want invalid_id", code)
 		}
 	})
@@ -232,7 +211,7 @@ func TestMalformedInputs(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400", rec.Code)
 		}
-		if code := errorCode(t, rec); code != "invalid_request" {
+		if code := httpxtest.ErrorCode(t, rec); code != "invalid_request" {
 			t.Errorf("code = %q, want invalid_request", code)
 		}
 	})
@@ -247,7 +226,7 @@ func TestUnexpectedErrorIsGeneric(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", rec.Code)
 	}
-	if code := errorCode(t, rec); code != "internal_error" {
+	if code := httpxtest.ErrorCode(t, rec); code != "internal_error" {
 		t.Errorf("code = %q, want internal_error", code)
 	}
 	if strings.Contains(rec.Body.String(), "users_email_key") {
@@ -289,7 +268,7 @@ func TestRoleEndpointIsAdminOnly(t *testing.T) {
 		if rec.Code != http.StatusForbidden {
 			t.Errorf("status = %d, want 403", rec.Code)
 		}
-		if code := errorCode(t, rec); code != "forbidden" {
+		if code := httpxtest.ErrorCode(t, rec); code != "forbidden" {
 			t.Errorf("code = %q, want forbidden", code)
 		}
 	})

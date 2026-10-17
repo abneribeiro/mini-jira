@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/abneribeiro/internal/httpx/httpxtest"
 	authmiddleware "github.com/abneribeiro/internal/middleware"
 	"github.com/abneribeiro/internal/user"
 )
@@ -36,26 +37,6 @@ func post(t *testing.T, h http.Handler, target, body string) *httptest.ResponseR
 	h.ServeHTTP(rec, req)
 
 	return rec
-}
-
-// errorCode decodes the shared envelope and fails if the body is not one.
-func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
-	t.Helper()
-
-	var body struct {
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("response body is not valid JSON (%v): %s", err, rec.Body.String())
-	}
-	if body.Error.Message == "" {
-		t.Errorf("error envelope has no message: %s", rec.Body.String())
-	}
-
-	return body.Error.Code
 }
 
 func loginResponse(t *testing.T, rec *httptest.ResponseRecorder) LoginResponse {
@@ -127,7 +108,7 @@ func TestLoginHandler(t *testing.T) {
 				t.Fatalf("status = %d, want %d: %s", rec.Code, tt.status, rec.Body.String())
 			}
 			if tt.wantCode != "" {
-				if code := errorCode(t, rec); code != tt.wantCode {
+				if code := httpxtest.ErrorCode(t, rec); code != tt.wantCode {
 					t.Errorf("code = %q, want %q", code, tt.wantCode)
 				}
 				if strings.Contains(rec.Body.String(), "connection refused") {
@@ -175,7 +156,7 @@ func TestRefreshHandler(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", rec.Code)
 		}
-		if code := errorCode(t, rec); code != "invalid_refresh_token" {
+		if code := httpxtest.ErrorCode(t, rec); code != "invalid_refresh_token" {
 			t.Errorf("code = %q, want invalid_refresh_token", code)
 		}
 	})
@@ -198,7 +179,7 @@ func TestRefreshHandler(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", rec.Code)
 		}
-		if code := errorCode(t, rec); code != "invalid_request" {
+		if code := httpxtest.ErrorCode(t, rec); code != "invalid_request" {
 			t.Errorf("code = %q, want invalid_request", code)
 		}
 	})
@@ -234,7 +215,7 @@ func TestLogoutHandler(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", rec.Code)
 		}
-		if code := errorCode(t, rec); code != "invalid_request" {
+		if code := httpxtest.ErrorCode(t, rec); code != "invalid_request" {
 			t.Errorf("code = %q, want invalid_request", code)
 		}
 	})
@@ -262,7 +243,7 @@ func TestAuthRoutesAreRateLimited(t *testing.T) {
 			if rec.Code != http.StatusTooManyRequests {
 				t.Fatalf("status = %d, want 429", rec.Code)
 			}
-			if code := errorCode(t, rec); code != "rate_limited" {
+			if code := httpxtest.ErrorCode(t, rec); code != "rate_limited" {
 				t.Errorf("code = %q, want rate_limited", code)
 			}
 			if rec.Header().Get("Retry-After") == "" {

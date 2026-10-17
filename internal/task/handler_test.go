@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/abneribeiro/internal/authz"
+	"github.com/abneribeiro/internal/httpx/httpxtest"
 	"github.com/abneribeiro/internal/jwt"
 	authmiddleware "github.com/abneribeiro/internal/middleware"
 	"github.com/google/uuid"
@@ -86,21 +86,6 @@ func do(t *testing.T, h http.Handler, method, target, body, token string) *httpt
 	h.ServeHTTP(rec, req)
 
 	return rec
-}
-
-func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
-	t.Helper()
-
-	var body struct {
-		Error struct {
-			Code string `json:"code"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("response body is not valid JSON (%v): %s", err, rec.Body.String())
-	}
-
-	return body.Error.Code
 }
 
 func TestEveryRouteRequiresAuth(t *testing.T) {
@@ -196,7 +181,7 @@ func TestListFilterParsing(t *testing.T) {
 			if rec.Code != http.StatusBadRequest {
 				t.Errorf("status = %d, want 400", rec.Code)
 			}
-			if code := errorCode(t, rec); code != "validation_failed" {
+			if code := httpxtest.ErrorCode(t, rec); code != "validation_failed" {
 				t.Errorf("code = %q, want validation_failed", code)
 			}
 		})
@@ -228,7 +213,7 @@ func TestErrorStatusMapping(t *testing.T) {
 			if rec.Code != tt.want {
 				t.Errorf("status = %d, want %d", rec.Code, tt.want)
 			}
-			if code := errorCode(t, rec); code != tt.wantCode {
+			if code := httpxtest.ErrorCode(t, rec); code != tt.wantCode {
 				t.Errorf("code = %q, want %q", code, tt.wantCode)
 			}
 		})

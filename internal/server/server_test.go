@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/abneribeiro/internal/auth"
+	"github.com/abneribeiro/internal/httpx/httpxtest"
 	"github.com/abneribeiro/internal/jwt"
 	authmiddleware "github.com/abneribeiro/internal/middleware"
 	"github.com/abneribeiro/internal/testdb"
@@ -45,21 +45,6 @@ func get(t *testing.T, h http.Handler, target string, header http.Header) *httpt
 	h.ServeHTTP(rec, req)
 
 	return rec
-}
-
-func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
-	t.Helper()
-
-	var body struct {
-		Error struct {
-			Code string `json:"code"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("body is not a JSON envelope (%v): %s", err, rec.Body.String())
-	}
-
-	return body.Error.Code
 }
 
 func TestLivez(t *testing.T) {
@@ -109,7 +94,7 @@ func TestMetricsIsolation(t *testing.T) {
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404", rec.Code)
 		}
-		if code := errorCode(t, rec); code != "not_found" {
+		if code := httpxtest.ErrorCode(t, rec); code != "not_found" {
 			t.Errorf("code = %q, want not_found", code)
 		}
 	})
@@ -161,7 +146,7 @@ func TestUnmatchedRoutesUseTheEnvelope(t *testing.T) {
 			if rec.Code != tt.status {
 				t.Fatalf("status = %d, want %d: %s", rec.Code, tt.status, rec.Body.String())
 			}
-			if code := errorCode(t, rec); code != tt.code {
+			if code := httpxtest.ErrorCode(t, rec); code != tt.code {
 				t.Errorf("code = %q, want %q", code, tt.code)
 			}
 		})

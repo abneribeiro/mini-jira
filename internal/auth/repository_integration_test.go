@@ -7,27 +7,7 @@ import (
 
 	"github.com/abneribeiro/internal/testdb"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-func seedUser(t *testing.T, db *pgxpool.Pool) uuid.UUID {
-	t.Helper()
-
-	id := uuid.New()
-	_, err := db.Exec(testdb.Context(t),
-		`INSERT INTO users (id, name, email, password) VALUES ($1, 'Test', $2, 'x')`,
-		id, id.String()+"@test.invalid")
-	if err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-
-	// Cascades to the user's refresh tokens.
-	t.Cleanup(func() {
-		_, _ = db.Exec(testdb.Context(t), `DELETE FROM users WHERE id = $1`, id)
-	})
-
-	return id
-}
 
 // storeToken persists a fresh token and returns its id and plaintext.
 func storeToken(t *testing.T, repo RefreshRepository, userID, familyID uuid.UUID, expiresAt time.Time) (uuid.UUID, string) {
@@ -60,7 +40,7 @@ func find(t *testing.T, repo RefreshRepository, token string) RefreshToken {
 func TestRepositoryStoreAndFind(t *testing.T) {
 	db := testdb.Pool(t)
 	repo := NewRefreshRepository(db)
-	userID := seedUser(t, db)
+	userID := testdb.SeedUser(t, db)
 	family := uuid.New()
 	expires := time.Now().Add(time.Hour).Truncate(time.Microsecond)
 
@@ -101,7 +81,7 @@ func TestRepositoryRevokeIsIdempotent(t *testing.T) {
 	db := testdb.Pool(t)
 	repo := NewRefreshRepository(db)
 	ctx := testdb.Context(t)
-	userID := seedUser(t, db)
+	userID := testdb.SeedUser(t, db)
 
 	id, token := storeToken(t, repo, userID, uuid.New(), time.Now().Add(time.Hour))
 
@@ -126,7 +106,7 @@ func TestRepositoryRevokeIsIdempotent(t *testing.T) {
 func TestRepositoryRevokeFamilyOnlyTouchesThatFamily(t *testing.T) {
 	db := testdb.Pool(t)
 	repo := NewRefreshRepository(db)
-	userID := seedUser(t, db)
+	userID := testdb.SeedUser(t, db)
 	family, other := uuid.New(), uuid.New()
 	expires := time.Now().Add(time.Hour)
 
@@ -149,7 +129,7 @@ func TestRepositoryRevokeFamilyOnlyTouchesThatFamily(t *testing.T) {
 func TestRepositoryRevokeAllForUser(t *testing.T) {
 	db := testdb.Pool(t)
 	repo := NewRefreshRepository(db)
-	alice, bob := seedUser(t, db), seedUser(t, db)
+	alice, bob := testdb.SeedUser(t, db), testdb.SeedUser(t, db)
 	expires := time.Now().Add(time.Hour)
 
 	_, a1 := storeToken(t, repo, alice, uuid.New(), expires)
@@ -171,7 +151,7 @@ func TestRepositoryRevokeAllForUser(t *testing.T) {
 func TestRepositoryDeleteExpired(t *testing.T) {
 	db := testdb.Pool(t)
 	repo := NewRefreshRepository(db)
-	userID := seedUser(t, db)
+	userID := testdb.SeedUser(t, db)
 	now := time.Now()
 
 	_, expired := storeToken(t, repo, userID, uuid.New(), now.Add(-time.Hour))

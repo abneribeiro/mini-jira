@@ -10,28 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// seedUser inserts a user directly; the task package has no user repository.
-func seedUser(t *testing.T, db *pgxpool.Pool) uuid.UUID {
-	t.Helper()
-
-	ctx := testdb.Context(t)
-	id := uuid.New()
-
-	_, err := db.Exec(ctx,
-		`INSERT INTO users (id, name, email, password) VALUES ($1, 'Test', $2, 'x')`,
-		id, id.String()+"@test.invalid")
-	if err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-
-	// Cascades to the user's projects and their tasks.
-	t.Cleanup(func() {
-		_, _ = db.Exec(testdb.Context(t), `DELETE FROM users WHERE id = $1`, id)
-	})
-
-	return id
-}
-
 func seedProject(t *testing.T, db *pgxpool.Pool, owner uuid.UUID) uuid.UUID {
 	t.Helper()
 
@@ -50,7 +28,7 @@ func TestRepositoryCreateAndGet(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 	project := seedProject(t, db, owner)
 	scope := authz.Scope{UserID: owner}
 
@@ -83,8 +61,8 @@ func TestRepositoryEnforcesOwnership(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
-	intruder := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
+	intruder := testdb.SeedUser(t, db)
 	project := seedProject(t, db, owner)
 
 	ownerScope := authz.Scope{UserID: owner}
@@ -147,7 +125,7 @@ func TestRepositoryAssigneeClearing(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 	project := seedProject(t, db, owner)
 	scope := authz.Scope{UserID: owner}
 
@@ -198,8 +176,8 @@ func TestRepositoryMoveBetweenProjects(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
-	stranger := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
+	stranger := testdb.SeedUser(t, db)
 	source := seedProject(t, db, owner)
 	destination := seedProject(t, db, owner)
 	foreign := seedProject(t, db, stranger)
@@ -242,7 +220,7 @@ func TestRepositoryListFilters(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 	projectA := seedProject(t, db, owner)
 	projectB := seedProject(t, db, owner)
 	scope := authz.Scope{UserID: owner}
@@ -315,7 +293,7 @@ func TestRepositoryNoFieldsToUpdate(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 
 	if _, err := repo.Update(ctx, uuid.New(), authz.Scope{UserID: owner}, UpdateInput{}); !errors.Is(err, ErrNoFieldsToUpdate) {
 		t.Errorf("err = %v, want ErrNoFieldsToUpdate", err)
@@ -327,7 +305,7 @@ func TestRepositoryForeignKeyTranslation(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 	project := seedProject(t, db, owner)
 	scope := authz.Scope{UserID: owner}
 	ghost := uuid.New()
@@ -354,7 +332,7 @@ func TestRepositoryDescriptionNeverNull(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 	project := seedProject(t, db, owner)
 	scope := authz.Scope{UserID: owner}
 

@@ -7,32 +7,12 @@ import (
 	"github.com/abneribeiro/internal/authz"
 	"github.com/abneribeiro/internal/testdb"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-func seedUser(t *testing.T, db *pgxpool.Pool) uuid.UUID {
-	t.Helper()
-
-	id := uuid.New()
-	_, err := db.Exec(testdb.Context(t),
-		`INSERT INTO users (id, name, email, password) VALUES ($1, 'Test', $2, 'x')`,
-		id, id.String()+"@test.invalid")
-	if err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-
-	// Cascades to the user's projects.
-	t.Cleanup(func() {
-		_, _ = db.Exec(testdb.Context(t), `DELETE FROM users WHERE id = $1`, id)
-	})
-
-	return id
-}
 
 func TestRepositoryCreateSetsOwner(t *testing.T) {
 	db := testdb.Pool(t)
 	repo := NewRepository(db)
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 
 	p, err := repo.Create(testdb.Context(t), uuid.New(), owner, CreateInput{Name: "Owned"})
 	if err != nil {
@@ -52,8 +32,8 @@ func TestRepositoryOwnershipIsEnforcedInSQL(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
-	intruder := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
+	intruder := testdb.SeedUser(t, db)
 	ownerScope := authz.Scope{UserID: owner}
 	intruderScope := authz.Scope{UserID: intruder}
 
@@ -91,8 +71,8 @@ func TestRepositoryListIsScopedAndPaginated(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
-	other := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
+	other := testdb.SeedUser(t, db)
 
 	for range 3 {
 		if _, err := repo.Create(ctx, uuid.New(), owner, CreateInput{Name: "Mine"}); err != nil {
@@ -131,7 +111,7 @@ func TestRepositoryDeleteCascadesToTasks(t *testing.T) {
 	ctx := testdb.Context(t)
 	repo := NewRepository(db)
 
-	owner := seedUser(t, db)
+	owner := testdb.SeedUser(t, db)
 	p, err := repo.Create(ctx, uuid.New(), owner, CreateInput{Name: "With tasks"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
