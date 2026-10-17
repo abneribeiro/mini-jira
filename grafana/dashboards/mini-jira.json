@@ -157,9 +157,19 @@
       },
       "targets": [
         {
-          "expr": "users_total or projects_total or tasks_total",
-          "legendFormat": "{{__name__}}",
+          "expr": "users_total",
+          "legendFormat": "users",
           "refId": "A"
+        },
+        {
+          "expr": "projects_total",
+          "legendFormat": "projects",
+          "refId": "B"
+        },
+        {
+          "expr": "tasks_total",
+          "legendFormat": "tasks",
+          "refId": "C"
         }
       ]
     },

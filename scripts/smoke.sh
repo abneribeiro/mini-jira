@@ -220,21 +220,36 @@ expect "unknown route uses the JSON envelope" 404 not_found
 request DELETE /health
 expect "wrong method uses the JSON envelope" 405 method_not_allowed
 
-if curl -s -o /dev/null --max-time 3 "$PROMETHEUS_URL/-/ready"; then
-    TARGETS="$(curl -s "$PROMETHEUS_URL/api/v1/targets?state=active")"
+# api_target_health -> health of the minijira_api scrape target.
+api_target_health() {
+    local targets
+    targets="$(curl -s --max-time 3 "$PROMETHEUS_URL/api/v1/targets?state=active")"
     if [ "$JSON_TOOL" = jq ]; then
-        API_HEALTH="$(printf '%s' "$TARGETS" | jq -r '.data.activeTargets[] | select(.labels.job=="minijira_api") | .health' | head -n1)"
+        printf '%s' "$targets" | jq -r '.data.activeTargets[] | select(.labels.job=="minijira_api") | .health' 2>/dev/null | head -n1
     else
-        API_HEALTH="$(printf '%s' "$TARGETS" | python3 -c '
+        printf '%s' "$targets" | python3 -c '
 import json, sys
-for t in json.load(sys.stdin)["data"]["activeTargets"]:
-    if t["labels"].get("job") == "minijira_api":
-        print(t["health"]); break
-')"
+try:
+    for t in json.load(sys.stdin)["data"]["activeTargets"]:
+        if t["labels"].get("job") == "minijira_api":
+            print(t["health"]); break
+except Exception:
+    pass
+'
     fi
-    # A freshly started Prometheus reports "unknown" until its first scrape.
+}
+
+if curl -s -o /dev/null --max-time 3 "$PROMETHEUS_URL/-/ready"; then
+    # A freshly started Prometheus reports "unknown" until its first scrape,
+    # which can take one scrape interval (15s) after `make docker-reset`.
+    API_HEALTH="$(api_target_health)"
+    for _ in $(seq 1 30); do
+        [ -n "$API_HEALTH" ] && [ "$API_HEALTH" != "unknown" ] && break
+        sleep 1
+        API_HEALTH="$(api_target_health)"
+    done
     if [ "$API_HEALTH" = "unknown" ]; then
-        skip "Prometheus has not scraped minijira_api yet"
+        skip "Prometheus has not scraped minijira_api after 30s"
     else
         assert "Prometheus scrapes the private metrics listener" "$API_HEALTH" "up"
     fi

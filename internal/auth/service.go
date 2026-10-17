@@ -64,7 +64,13 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (LoginResponse, e
 	}
 
 	// A fresh login starts a new rotation family.
-	resp, err := s.issue(ctx, u, uuid.New())
+	familyID, err := uuid.NewV7()
+	if err != nil {
+		metrics.RecordLoginAttempt("error")
+		return LoginResponse{}, fmt.Errorf("auth.Login: generate family id: %w", err)
+	}
+
+	resp, err := s.issue(ctx, u, familyID)
 	if err != nil {
 		metrics.RecordLoginAttempt("error")
 		return LoginResponse{}, err
@@ -92,20 +98,8 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (LoginRespons
 		return LoginResponse{}, fmt.Errorf("auth.Refresh: look up token: %w", err)
 	}
 
-	// A revoked token being presented means it was rotated already and then
-	// replayed: the holder is not the only one with it. Kill the whole chain
-	// rather than just refusing this one request.
 	if stored.revoked() {
-		slog.WarnContext(ctx, "refresh token reuse detected, revoking family",
-			"user_id", stored.UserID, "family_id", stored.FamilyID)
-
-		if err := s.refreshRepo.RevokeFamily(ctx, stored.FamilyID); err != nil {
-			return LoginResponse{}, fmt.Errorf("auth.Refresh: revoke family: %w", err)
-		}
-
-		metrics.RecordLoginAttempt("refresh_reuse")
-
-		return LoginResponse{}, ErrInvalidRefresh
+		return LoginResponse{}, s.rejectReuse(ctx, stored)
 	}
 
 	if stored.expired(time.Now()) {
@@ -122,8 +116,15 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (LoginRespons
 		return LoginResponse{}, fmt.Errorf("auth.Refresh: look up user: %w", err)
 	}
 
-	if err := s.refreshRepo.Revoke(ctx, stored.ID); err != nil {
+	revoked, err := s.refreshRepo.Revoke(ctx, stored.ID)
+	if err != nil {
 		return LoginResponse{}, fmt.Errorf("auth.Refresh: revoke rotated token: %w", err)
+	}
+
+	// Another request rotated this token between the lookup and the revoke.
+	// Two parties presenting the same token at once is reuse, just faster.
+	if !revoked {
+		return LoginResponse{}, s.rejectReuse(ctx, stored)
 	}
 
 	resp, err := s.issue(ctx, u, stored.FamilyID)
@@ -134,6 +135,22 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (LoginRespons
 	metrics.RecordLoginAttempt("refresh")
 
 	return resp, nil
+}
+
+// rejectReuse handles a refresh token that was already rotated: the holder
+// is not the only one with it. The whole chain is killed rather than just
+// this one request refused.
+func (s *Service) rejectReuse(ctx context.Context, stored RefreshToken) error {
+	slog.WarnContext(ctx, "refresh token reuse detected, revoking family",
+		"user_id", stored.UserID, "family_id", stored.FamilyID)
+
+	if err := s.refreshRepo.RevokeFamily(ctx, stored.FamilyID); err != nil {
+		return fmt.Errorf("auth.Refresh: revoke family: %w", err)
+	}
+
+	metrics.RecordLoginAttempt("refresh_reuse")
+
+	return ErrInvalidRefresh
 }
 
 // Logout revokes the presented token's whole family, so the session cannot be

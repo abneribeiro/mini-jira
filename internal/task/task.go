@@ -59,10 +59,6 @@ func (n *NullableUUID) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (n NullableUUID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(n.Value)
-}
-
 type Task struct {
 	ID          uuid.UUID  `json:"id"`
 	Title       string     `json:"title"`

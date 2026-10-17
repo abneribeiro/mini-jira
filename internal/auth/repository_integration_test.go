@@ -77,7 +77,7 @@ func TestRepositoryFindUnknownToken(t *testing.T) {
 	}
 }
 
-func TestRepositoryRevokeIsIdempotent(t *testing.T) {
+func TestRepositoryRevokeReportsOnlyTheFirstCall(t *testing.T) {
 	db := testdb.Pool(t)
 	repo := NewRefreshRepository(db)
 	ctx := testdb.Context(t)
@@ -85,8 +85,12 @@ func TestRepositoryRevokeIsIdempotent(t *testing.T) {
 
 	id, token := storeToken(t, repo, userID, uuid.New(), time.Now().Add(time.Hour))
 
-	if err := repo.Revoke(ctx, id); err != nil {
+	revoked, err := repo.Revoke(ctx, id)
+	if err != nil {
 		t.Fatalf("Revoke: %v", err)
+	}
+	if !revoked {
+		t.Error("first Revoke reported the token as already revoked")
 	}
 	first := find(t, repo, token)
 	if !first.revoked() {
@@ -95,8 +99,14 @@ func TestRepositoryRevokeIsIdempotent(t *testing.T) {
 
 	// A second revoke must not move revoked_at: it records when the chain
 	// was first cut, which reuse investigations depend on.
-	if err := repo.Revoke(ctx, id); err != nil {
+	// A second revoke reports false: that is how a concurrent rotation learns
+	// it lost the race.
+	revoked, err = repo.Revoke(ctx, id)
+	if err != nil {
 		t.Fatalf("second Revoke: %v", err)
+	}
+	if revoked {
+		t.Error("second Revoke claimed to revoke an already revoked token")
 	}
 	if second := find(t, repo, token); !second.RevokedAt.Equal(*first.RevokedAt) {
 		t.Errorf("revoked_at moved from %v to %v", first.RevokedAt, second.RevokedAt)

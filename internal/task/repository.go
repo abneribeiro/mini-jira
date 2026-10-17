@@ -65,6 +65,11 @@ func (r *repository) Create(ctx context.Context, id uuid.UUID, scope authz.Scope
 		if database.ForeignKeyViolation(err, "tasks_assignee_id_fkey") {
 			return Task{}, fmt.Errorf("repository.Create: %w", ErrAssigneeNotFound)
 		}
+		// The project passed the EXISTS check but was deleted before the
+		// insert committed.
+		if database.ForeignKeyViolation(err, "tasks_project_id_fkey") {
+			return Task{}, fmt.Errorf("repository.Create: %w", ErrProjectNotFound)
+		}
 		return Task{}, fmt.Errorf("repository.Create: failed to insert task: %w", err)
 	}
 

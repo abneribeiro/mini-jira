@@ -30,7 +30,7 @@ type Deps struct {
 	Limiters  auth.Limiters
 
 	// TrustProxyHeaders mounts chi's RealIP. Leave it off unless a proxy that
-	// rewrites X-Forwarded-For sits in front: the login rate limiter keys on
+	// rewrites X-Forwarded-For sits in front: the auth rate limiters key on
 	// the client address, and a spoofable address is no limit at all.
 	TrustProxyHeaders bool
 }

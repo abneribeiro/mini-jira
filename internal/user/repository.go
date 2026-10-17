@@ -31,7 +31,7 @@ func NewRepository(db *pgxpool.Pool) Repository {
 	return &repository{db: db}
 }
 
-// publicColumns omits password. withPassword is only for the login path.
+// publicColumns omits password. columnsWithSecrets is only for the login path.
 const (
 	publicColumns      = `id, name, email, role, created_at, updated_at`
 	columnsWithSecrets = `id, name, email, role, password, created_at, updated_at`

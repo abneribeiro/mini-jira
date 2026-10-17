@@ -23,7 +23,7 @@ func decodeUpdate(t *testing.T, body string) UpdateInput {
 // between $N placeholders and the args slice is a runtime Postgres error that
 // no compiler catches.
 func TestBuildUpdateSetPlaceholdersMatchArgs(t *testing.T) {
-	assignee := uuid.New()
+	assignee, project := uuid.New(), uuid.New()
 
 	tests := []struct {
 		name        string
@@ -36,6 +36,7 @@ func TestBuildUpdateSetPlaceholdersMatchArgs(t *testing.T) {
 		{"status only", `{"status":"DONE"}`, []string{"status = $1"}},
 		{"assignee only", `{"assignee_id":"` + assignee.String() + `"}`, []string{"assignee_id = $1"}},
 		{"clear assignee", `{"assignee_id":null}`, []string{"assignee_id = $1"}},
+		{"move only", `{"project_id":"` + project.String() + `"}`, []string{"project_id = $1"}},
 		{
 			"title and status",
 			`{"title":"t","status":"DONE"}`,
@@ -43,8 +44,8 @@ func TestBuildUpdateSetPlaceholdersMatchArgs(t *testing.T) {
 		},
 		{
 			"every field",
-			`{"title":"t","description":"d","status":"DONE","assignee_id":"` + assignee.String() + `"}`,
-			[]string{"title = $1", "description = $2", "status = $3", "assignee_id = $4"},
+			`{"title":"t","description":"d","status":"DONE","assignee_id":"` + assignee.String() + `","project_id":"` + project.String() + `"}`,
+			[]string{"title = $1", "description = $2", "status = $3", "assignee_id = $4", "project_id = $5"},
 		},
 		{
 			"gap in the middle keeps numbering dense",

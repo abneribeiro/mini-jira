@@ -86,8 +86,7 @@ func TestCreateValidation(t *testing.T) {
 func TestUpdateStatusValidation(t *testing.T) {
 	for _, status := range []string{"TODO", "IN_PROGRESS", "DONE"} {
 		t.Run("accepts "+status, func(t *testing.T) {
-			s := status
-			if _, err := NewService(&fakeRepo{}).Update(context.Background(), uuid.New(), authz.Scope{UserID: uuid.New()}, UpdateInput{Status: &s}); err != nil {
+			if _, err := NewService(&fakeRepo{}).Update(context.Background(), uuid.New(), authz.Scope{UserID: uuid.New()}, UpdateInput{Status: &status}); err != nil {
 				t.Errorf("status %q rejected: %v", status, err)
 			}
 		})
@@ -95,8 +94,7 @@ func TestUpdateStatusValidation(t *testing.T) {
 
 	for _, status := range []string{"todo", "BOGUS", "", "Done"} {
 		t.Run("rejects "+status, func(t *testing.T) {
-			s := status
-			_, err := NewService(&fakeRepo{}).Update(context.Background(), uuid.New(), authz.Scope{UserID: uuid.New()}, UpdateInput{Status: &s})
+			_, err := NewService(&fakeRepo{}).Update(context.Background(), uuid.New(), authz.Scope{UserID: uuid.New()}, UpdateInput{Status: &status})
 			if !errors.Is(err, ErrInvalidTask) {
 				t.Errorf("status %q accepted, want rejection", status)
 			}

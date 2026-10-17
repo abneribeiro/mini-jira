@@ -8,9 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func New(ctx context.Context, databaseUrl string) (*pgxpool.Pool, error) {
-	config, err := pgxpool.ParseConfig(databaseUrl)
-
+func New(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse database config: %w", err)
 	}
@@ -21,7 +20,6 @@ func New(ctx context.Context, databaseUrl string) (*pgxpool.Pool, error) {
 	config.MaxConnIdleTime = 5 * time.Minute
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
-
 	if err != nil {
 		return nil, fmt.Errorf("create database pool: %w", err)
 	}

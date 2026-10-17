@@ -48,6 +48,10 @@ func (f *fakeUserRepo) Delete(context.Context, uuid.UUID) error { return nil }
 type fakeRefreshRepo struct {
 	tokens map[string]*RefreshToken // keyed by hex of the hash
 	err    error
+
+	// rotatedConcurrently makes Revoke behave as if another request had
+	// revoked the token between FindByHash and Revoke.
+	rotatedConcurrently bool
 }
 
 func newFakeRefreshRepo() *fakeRefreshRepo {
@@ -72,14 +76,21 @@ func (f *fakeRefreshRepo) FindByHash(_ context.Context, hash []byte) (RefreshTok
 	return *t, nil
 }
 
-func (f *fakeRefreshRepo) Revoke(_ context.Context, id uuid.UUID) error {
+func (f *fakeRefreshRepo) Revoke(_ context.Context, id uuid.UUID) (bool, error) {
 	now := time.Now()
 	for _, t := range f.tokens {
 		if t.ID == id {
+			if f.rotatedConcurrently {
+				t.RevokedAt = &now
+			}
+			if t.RevokedAt != nil {
+				return false, nil
+			}
 			t.RevokedAt = &now
+			return true, nil
 		}
 	}
-	return nil
+	return false, nil
 }
 
 func (f *fakeRefreshRepo) RevokeFamily(_ context.Context, familyID uuid.UUID) error {
@@ -314,6 +325,33 @@ func TestRefreshReuseRevokesTheFamily(t *testing.T) {
 	// The token the legitimate client holds must be dead too.
 	if _, err := svc.Refresh(ctx, RefreshInput{RefreshToken: rotated.RefreshToken}); !errors.Is(err, ErrInvalidRefresh) {
 		t.Errorf("current token still works after family revocation: %v", err)
+	}
+}
+
+// Two requests presenting the same token at once must not both rotate it:
+// the one that loses the revoke is treated as reuse, so a thief racing the
+// legitimate client cannot slip past detection.
+func TestRefreshRaceIsTreatedAsReuse(t *testing.T) {
+	repo := &fakeUserRepo{user: registeredUser(t, "password123")}
+	refresh := newFakeRefreshRepo()
+	svc := NewService(repo, refresh, testManager())
+	ctx := context.Background()
+
+	login, err := svc.Login(ctx, LoginInput{Email: "alice@example.com", Password: "password123"})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	refresh.rotatedConcurrently = true
+
+	if _, err := svc.Refresh(ctx, RefreshInput{RefreshToken: login.RefreshToken}); !errors.Is(err, ErrInvalidRefresh) {
+		t.Fatalf("err = %v, want ErrInvalidRefresh", err)
+	}
+	if refresh.liveTokens() != 0 {
+		t.Errorf("%d tokens still live after losing the rotation race, want 0", refresh.liveTokens())
+	}
+	if len(refresh.tokens) != 1 {
+		t.Errorf("%d tokens stored, want no new token issued", len(refresh.tokens))
 	}
 }
 

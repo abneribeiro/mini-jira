@@ -21,7 +21,7 @@ const refreshTokenBytes = 32
 type RefreshRepository interface {
 	Store(ctx context.Context, id, userID, familyID uuid.UUID, hash []byte, expiresAt time.Time) error
 	FindByHash(ctx context.Context, hash []byte) (RefreshToken, error)
-	Revoke(ctx context.Context, id uuid.UUID) error
+	Revoke(ctx context.Context, id uuid.UUID) (bool, error)
 	RevokeFamily(ctx context.Context, familyID uuid.UUID) error
 	RevokeAllForUser(ctx context.Context, userID uuid.UUID) error
 	DeleteExpired(ctx context.Context, before time.Time) (int64, error)
@@ -91,7 +91,11 @@ func (r *refreshRepository) FindByHash(ctx context.Context, hash []byte) (Refres
 	return t, nil
 }
 
-func (r *refreshRepository) Revoke(ctx context.Context, id uuid.UUID) error {
+// Revoke reports whether this call is the one that revoked the token. The
+// revoked_at IS NULL guard makes the UPDATE the arbiter between concurrent
+// rotations: only one of them affects the row, and the other learns that the
+// token was already spent.
+func (r *refreshRepository) Revoke(ctx context.Context, id uuid.UUID) (bool, error) {
 	defer metrics.ObserveQuery("update", "refresh_tokens")()
 
 	const query = `
@@ -100,14 +104,15 @@ func (r *refreshRepository) Revoke(ctx context.Context, id uuid.UUID) error {
 		WHERE id = $1 AND revoked_at IS NULL
 	`
 
-	if _, err := r.db.Exec(ctx, query, id); err != nil {
-		return fmt.Errorf("repository.Revoke: failed to revoke refresh token: %w", err)
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return false, fmt.Errorf("repository.Revoke: failed to revoke refresh token: %w", err)
 	}
 
-	return nil
+	return tag.RowsAffected() == 1, nil
 }
 
-// RevokeFamily kills an entire rotation chain, used when a already-rotated
+// RevokeFamily kills an entire rotation chain, used when an already-rotated
 // token is replayed.
 func (r *refreshRepository) RevokeFamily(ctx context.Context, familyID uuid.UUID) error {
 	defer metrics.ObserveQuery("update", "refresh_tokens")()

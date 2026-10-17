@@ -293,3 +293,40 @@ func TestPasswordChangeSurfacesRevocationFailure(t *testing.T) {
 		t.Fatalf("err = %v, want the revocation failure", err)
 	}
 }
+
+func TestUpdateRoleValidation(t *testing.T) {
+	svc := NewService(&fakeRepo{}, &fakeSessions{})
+	ctx := context.Background()
+
+	if _, err := svc.UpdateRole(ctx, uuid.New(), "superuser"); !errors.Is(err, ErrInvalidRole) {
+		t.Errorf("unknown role: err = %v, want ErrInvalidRole", err)
+	}
+	if _, err := svc.UpdateRole(ctx, uuid.Nil, "admin"); !errors.Is(err, ErrInvalidUser) {
+		t.Errorf("uuid.Nil: err = %v, want ErrInvalidUser", err)
+	}
+
+	repo := &fakeRepo{}
+	id := uuid.New()
+	updated, err := NewService(repo, &fakeSessions{}).UpdateRole(ctx, id, "admin")
+	if err != nil {
+		t.Fatalf("UpdateRole: %v", err)
+	}
+	if repo.updatedID != id || updated.Role != "admin" {
+		t.Errorf("got id=%v role=%q, want id=%v role=admin", repo.updatedID, updated.Role, id)
+	}
+}
+
+func TestListValidation(t *testing.T) {
+	svc := NewService(&fakeRepo{}, &fakeSessions{})
+	ctx := context.Background()
+
+	if _, err := svc.List(ctx, ListFilter{Limit: MaxListLimit + 1}); !errors.Is(err, ErrInvalidUser) {
+		t.Errorf("limit above the cap: err = %v, want ErrInvalidUser", err)
+	}
+	if _, err := svc.List(ctx, ListFilter{Offset: -1}); !errors.Is(err, ErrInvalidUser) {
+		t.Errorf("negative offset: err = %v, want ErrInvalidUser", err)
+	}
+	if _, err := svc.List(ctx, ListFilter{}); err != nil {
+		t.Errorf("default filter: %v", err)
+	}
+}

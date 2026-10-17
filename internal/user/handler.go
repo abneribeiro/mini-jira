@@ -199,15 +199,14 @@ func (h *Handler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	caller, ok := authmiddleware.GetUserIDFromContext(r.Context())
+	scope, ok := authmiddleware.RequireScope(w, r)
 	if !ok {
-		httpx.WriteError(w, http.StatusUnauthorized, httpx.CodeUnauthorized, "authentication required")
 		return
 	}
 
 	// An admin demoting themselves could leave the system with no admin and
 	// no way back in through the API.
-	if caller == id && input.Role != authz.RoleAdmin {
+	if scope.UserID == id && input.Role != authz.RoleAdmin {
 		httpx.WriteError(w, http.StatusForbidden, httpx.CodeForbidden, "you cannot remove your own admin role")
 		return
 	}
