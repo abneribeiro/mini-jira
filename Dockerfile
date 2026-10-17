@@ -12,7 +12,8 @@ RUN go mod download
 COPY . .
 
 # CGO_ENABLED=0 produces a static binary, which is what lets the final stage
-# be scratch. -trimpath and -ldflags drop build paths and debug info.
+# be distroless/static (no libc). -trimpath and -ldflags drop build paths and
+# debug info; main.version is reported in the startup log.
 ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build \
         -trimpath \

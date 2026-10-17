@@ -10,6 +10,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
+      # Postgres 18 keeps PGDATA in a major-version subdirectory
+      # (/var/lib/postgresql/18/docker), so the volume mounts the parent.
       - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d mini_jira"]
@@ -42,6 +44,9 @@ services:
       PORT: "8080"
       METRICS_PORT: "9091"
       APP_ENV: production
+      # Nothing sits in front of the API here, so forwarded headers come
+      # straight from clients and must not be trusted.
+      TRUST_PROXY_HEADERS: "false"
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/mini_jira?sslmode=disable
       # Override in a real deployment. config.Load refuses anything under 32
       # characters.
@@ -51,6 +56,13 @@ services:
       # metrics listener stays reachable on the compose network and nowhere
       # else.
       - "8080:8080"
+    # distroless has no shell or curl; the binary probes its own /livez.
+    healthcheck:
+      test: ["CMD", "/app/api", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,22 +70,23 @@ services:
         condition: service_completed_successfully
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.15.0
     container_name: mini-jira-prometheus
     restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.3
     container_name: mini-jira-grafana
     restart: unless-stopped
     ports:
@@ -84,10 +97,11 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
 
 volumes:
   postgres_data:

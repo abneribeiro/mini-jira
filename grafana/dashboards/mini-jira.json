@@ -1,8 +1,8 @@
 {
-  "title": "Mini Jira \u2014 API",
+  "title": "Mini Jira - API",
   "uid": "mini-jira-api",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": {
     "from": "now-1h",
@@ -243,6 +243,34 @@
         {
           "expr": "sum by (result) (rate(login_attempts_total[5m]))",
           "legendFormat": "{{result}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Rate-limited requests (429)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (endpoint) (rate(http_requests_total{status=\"429\"}[5m]))",
+          "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
       ]
