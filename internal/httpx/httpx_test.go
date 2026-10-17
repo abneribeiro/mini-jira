@@ -117,6 +117,26 @@ func TestDecodeJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("trailing whitespace", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{\"name\":\"x\"}\n \t"))
+		if err := DecodeJSON(httptest.NewRecorder(), req, &dst); err != nil {
+			t.Errorf("trailing whitespace was rejected: %v", err)
+		}
+	})
+
+	for name, body := range map[string]string{
+		"two objects":      `{"name":"x"}{"name":"y"}`,
+		"trailing garbage": `{"name":"x"} garbage`,
+		"trailing array":   `{"name":"x"}[]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			if err := DecodeJSON(httptest.NewRecorder(), req, &dst); err == nil {
+				t.Errorf("body %q was accepted", body)
+			}
+		})
+	}
+
 	t.Run("body over the cap", func(t *testing.T) {
 		huge := `{"name":"` + strings.Repeat("a", MaxBodyBytes) + `"}`
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(huge))

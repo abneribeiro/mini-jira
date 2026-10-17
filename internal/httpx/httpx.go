@@ -3,6 +3,7 @@ package httpx
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -74,12 +75,25 @@ func WriteNoContent(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DecodeJSON caps and closes the body, so callers cannot forget either.
+var errTrailingData = errors.New("request body must contain a single JSON value")
+
+// DecodeJSON caps and closes the body, so callers cannot forget either. The
+// body must hold exactly one JSON value: a second value or trailing garbage is
+// rejected instead of being silently ignored.
 func DecodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 	defer r.Body.Close()
 
-	return json.NewDecoder(r.Body).Decode(v)
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(v); err != nil {
+		return err
+	}
+
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return errTrailingData
+	}
+
+	return nil
 }
 
 // URLParamUUID parses the named chi path parameter as a UUID. On failure it
