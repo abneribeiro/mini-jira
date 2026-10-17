@@ -1,12 +1,32 @@
+# Keep the build context to what `go build` needs: go.mod, go.sum, cmd/,
+# internal/. Everything else only slows the context upload or leaks into
+# the image cache.
+
+# VCS and CI
 .git
 .github
-tmp
+
+# Local build output and tooling
+tmp/
+bin/
+dist/
+coverage.*
+Makefile
+.air.toml
+scripts/
+
+# Compose and observability config are mounted at runtime, not built in
+docker-compose.yml
+grafana
+prometheus
+
+# Documentation
 *.md
-!minijira.md
+
+# Secrets
 .env
 .env.*
 !.env.example
-grafana
-prometheus
-coverage.*
+
+# Tests are not compiled into the binary
 *_test.go

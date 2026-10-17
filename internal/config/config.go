@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -19,6 +20,11 @@ type Config struct {
 	AppEnv      string
 	DatabaseURL string
 	JWTSecret   string
+
+	// TrustProxyHeaders makes the server take the client address from
+	// X-Forwarded-For / X-Real-IP. Only safe behind a proxy that overwrites
+	// them; otherwise any client can pick its own rate-limit key.
+	TrustProxyHeaders bool
 }
 
 // LoadDatabaseURL is for tools that only talk to the database, such as the
@@ -74,11 +80,21 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("JWT_SECRET must be at least %d characters, got %d", minJWTSecretLen, len(jwtSecret))
 	}
 
+	trustProxyHeaders := false
+	if raw := os.Getenv("TRUST_PROXY_HEADERS"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("TRUST_PROXY_HEADERS must be a boolean, got %q", raw)
+		}
+		trustProxyHeaders = parsed
+	}
+
 	return Config{
-		AppPort:     appPort,
-		MetricsPort: metricsPort,
-		AppEnv:      appEnv,
-		DatabaseURL: databaseURL,
-		JWTSecret:   jwtSecret,
+		AppPort:           appPort,
+		MetricsPort:       metricsPort,
+		AppEnv:            appEnv,
+		DatabaseURL:       databaseURL,
+		JWTSecret:         jwtSecret,
+		TrustProxyHeaders: trustProxyHeaders,
 	}, nil
 }

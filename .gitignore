@@ -14,9 +14,10 @@
 /build/
 dist/
 
-# Air
+# Air (tmp_dir and build log from .air.toml)
 
-tmp
+/tmp/
+build-errors.log
 
 # Go workspace
 
