@@ -63,12 +63,14 @@ test-integration: db-up ## Run all tests against a dedicated, migrated Postgres 
 	@$(PSQL) -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$(PG_TEST_DB)'" | grep -q 1 \
 		|| $(PSQL) -d postgres -c "CREATE DATABASE $(PG_TEST_DB)"
 	DATABASE_URL="$(TEST_DB_URL)" go run ./cmd/migrate up
-	TEST_DATABASE_URL="$(TEST_DB_URL)" go test -count=1 ./...
+	@# -p 1: packages share one database, and global queries such as the user
+	@# list would otherwise see rows inserted concurrently by other packages.
+	TEST_DATABASE_URL="$(TEST_DB_URL)" go test -p 1 -count=1 ./...
 
 test-all: vet test-race test-integration ## Run vet, race-enabled unit tests and integration tests
 
 coverage: db-up ## Write coverage.out and coverage.html (includes integration tests)
-	TEST_DATABASE_URL="$(TEST_DB_URL)" go test -count=1 -coverprofile=coverage.out ./...
+	TEST_DATABASE_URL="$(TEST_DB_URL)" go test -p 1 -count=1 -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out | tail -1
 
