@@ -347,7 +347,7 @@ func TestRepositoryForeignKeyTranslation(t *testing.T) {
 	})
 }
 
-// description is NOT NULL DEFAULT ” since migration 00004; scanning a NULL
+// description is NOT NULL DEFAULT (empty string) since migration 00004; scanning a NULL
 // into a plain string used to fail at runtime.
 func TestRepositoryDescriptionNeverNull(t *testing.T) {
 	db := testdb.Pool(t)
