@@ -2,8 +2,13 @@ package httpx
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 const MaxBodyBytes = 1 << 20 // 1 MiB
@@ -75,4 +80,38 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	defer r.Body.Close()
 
 	return json.NewDecoder(r.Body).Decode(v)
+}
+
+// URLParamUUID parses the named chi path parameter as a UUID. On failure it
+// writes 400 invalid_id and reports false, so handlers can simply return.
+func URLParamUUID(w http.ResponseWriter, r *http.Request, name string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, name))
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, CodeInvalidID, "invalid ID: must be a valid UUID")
+		return uuid.Nil, false
+	}
+
+	return id, true
+}
+
+// ParsePagination reads limit and offset from the query string. It only
+// rejects values that are not integers; each domain's service owns the range
+// rules and wraps the error in its own validation sentinel.
+func ParsePagination(r *http.Request, defaultLimit int) (limit, offset int, err error) {
+	q := r.URL.Query()
+	limit = defaultLimit
+
+	if raw := q.Get("limit"); raw != "" {
+		if limit, err = strconv.Atoi(raw); err != nil {
+			return 0, 0, errors.New("limit must be an integer")
+		}
+	}
+
+	if raw := q.Get("offset"); raw != "" {
+		if offset, err = strconv.Atoi(raw); err != nil {
+			return 0, 0, errors.New("offset must be an integer")
+		}
+	}
+
+	return limit, offset, nil
 }

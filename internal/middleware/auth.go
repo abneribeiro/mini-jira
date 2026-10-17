@@ -86,6 +86,20 @@ func ScopeFromContext(ctx context.Context) (authz.Scope, bool) {
 	return authz.NewScope(userID, role), true
 }
 
+// RequireScope returns the authenticated caller for a handler behind
+// AuthMiddleware. A miss means the route was mounted without auth, which is a
+// wiring bug rather than a client error, so it is logged; the client gets 401.
+func RequireScope(w http.ResponseWriter, r *http.Request) (authz.Scope, bool) {
+	scope, ok := ScopeFromContext(r.Context())
+	if !ok {
+		slog.ErrorContext(r.Context(), "route reached without an authenticated user", "path", r.URL.Path)
+		httpx.WriteError(w, http.StatusUnauthorized, httpx.CodeUnauthorized, "authentication required")
+		return authz.Scope{}, false
+	}
+
+	return scope, true
+}
+
 // RequireAdmin rejects any caller whose token does not carry the admin role.
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/abneribeiro/internal/authz"
 	"github.com/abneribeiro/internal/httpx"
@@ -71,10 +70,8 @@ func respondError(w http.ResponseWriter, r *http.Request, err error) {
 // requireSelfOrAdmin enforces that a member may only mutate their own
 // account; an admin may act on any.
 func requireSelfOrAdmin(w http.ResponseWriter, r *http.Request, target uuid.UUID) bool {
-	scope, ok := authmiddleware.ScopeFromContext(r.Context())
+	scope, ok := authmiddleware.RequireScope(w, r)
 	if !ok {
-		slog.ErrorContext(r.Context(), "user route reached without an authenticated user", "path", r.URL.Path)
-		httpx.WriteError(w, http.StatusUnauthorized, httpx.CodeUnauthorized, "authentication required")
 		return false
 	}
 
@@ -88,36 +85,12 @@ func requireSelfOrAdmin(w http.ResponseWriter, r *http.Request, target uuid.UUID
 
 // parseListFilter reads pagination from the query string.
 func parseListFilter(r *http.Request) (ListFilter, error) {
-	q := r.URL.Query()
-	filter := ListFilter{Limit: DefaultListLimit}
-
-	if raw := q.Get("limit"); raw != "" {
-		limit, err := strconv.Atoi(raw)
-		if err != nil {
-			return ListFilter{}, fmt.Errorf("%w: limit must be an integer", ErrInvalidUser)
-		}
-		filter.Limit = limit
-	}
-
-	if raw := q.Get("offset"); raw != "" {
-		offset, err := strconv.Atoi(raw)
-		if err != nil {
-			return ListFilter{}, fmt.Errorf("%w: offset must be an integer", ErrInvalidUser)
-		}
-		filter.Offset = offset
-	}
-
-	return filter, nil
-}
-
-func parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	limit, offset, err := httpx.ParsePagination(r, DefaultListLimit)
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, httpx.CodeInvalidID, "invalid ID: must be a valid UUID")
-		return uuid.Nil, false
+		return ListFilter{}, fmt.Errorf("%w: %w", ErrInvalidUser, err)
 	}
 
-	return id, true
+	return ListFilter{Limit: limit, Offset: offset}, nil
 }
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +111,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	id, ok := parseID(w, r)
+	id, ok := httpx.URLParamUUID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -179,7 +152,7 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
-	id, ok := parseID(w, r)
+	id, ok := httpx.URLParamUUID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -194,7 +167,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	id, ok := parseID(w, r)
+	id, ok := httpx.URLParamUUID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -213,7 +186,7 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // UpdateUserRole is mounted behind RequireAdmin.
 func (h *Handler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
-	id, ok := parseID(w, r)
+	id, ok := httpx.URLParamUUID(w, r, "id")
 	if !ok {
 		return
 	}

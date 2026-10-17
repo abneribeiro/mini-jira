@@ -6,6 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type envelope struct {
@@ -121,4 +124,80 @@ func TestDecodeJSON(t *testing.T) {
 			t.Error("a body larger than MaxBodyBytes was accepted")
 		}
 	})
+}
+
+func TestURLParamUUID(t *testing.T) {
+	want := uuid.New()
+
+	serve := func(target string) (uuid.UUID, bool, *httptest.ResponseRecorder) {
+		var (
+			got uuid.UUID
+			ok  bool
+		)
+		r := chi.NewRouter()
+		r.Get("/items/{id}", func(w http.ResponseWriter, r *http.Request) {
+			got, ok = URLParamUUID(w, r, "id")
+		})
+
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+
+		return got, ok, rec
+	}
+
+	t.Run("valid", func(t *testing.T) {
+		got, ok, rec := serve("/items/" + want.String())
+		if !ok || got != want {
+			t.Errorf("got (%v, %v), want (%v, true)", got, ok, want)
+		}
+		if rec.Body.Len() != 0 {
+			t.Errorf("a valid ID wrote a response: %s", rec.Body.String())
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		_, ok, rec := serve("/items/not-a-uuid")
+		if ok {
+			t.Fatal("an invalid ID was accepted")
+		}
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400", rec.Code)
+		}
+		if env := decodeEnvelope(t, rec); env.Error.Code != CodeInvalidID {
+			t.Errorf("code = %q, want %q", env.Error.Code, CodeInvalidID)
+		}
+	})
+}
+
+func TestParsePagination(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   string
+		limit   int
+		offset  int
+		wantErr bool
+	}{
+		{name: "absent uses the default", query: "", limit: 50},
+		{name: "explicit values", query: "?limit=10&offset=20", limit: 10, offset: 20},
+		{name: "range is left to the service", query: "?limit=-1&offset=-5", limit: -1, offset: -5},
+		{name: "non-integer limit", query: "?limit=ten", wantErr: true},
+		{name: "non-integer offset", query: "?offset=1.5", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/"+tt.query, nil)
+
+			limit, offset, err := ParsePagination(req, 50)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if limit != tt.limit || offset != tt.offset {
+				t.Errorf("got (%d, %d), want (%d, %d)", limit, offset, tt.limit, tt.offset)
+			}
+		})
+	}
 }

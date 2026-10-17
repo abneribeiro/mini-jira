@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/abneribeiro/internal/authz"
 	"github.com/abneribeiro/internal/httpx"
 	authmiddleware "github.com/abneribeiro/internal/middleware"
 	"github.com/go-chi/chi/v5"
@@ -61,25 +59,16 @@ func respondError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-// callerScope is the authenticated user. AuthMiddleware guarantees it is
-// present on every route in this package; a miss means the route was mounted
-// without auth, which is a wiring bug, not a client error.
-func callerScope(w http.ResponseWriter, r *http.Request) (authz.Scope, bool) {
-	scope, ok := authmiddleware.ScopeFromContext(r.Context())
-	if !ok {
-		slog.ErrorContext(r.Context(), "task route reached without an authenticated user", "path", r.URL.Path)
-		httpx.WriteError(w, http.StatusUnauthorized, httpx.CodeUnauthorized, "authentication required")
-		return authz.Scope{}, false
-	}
-
-	return scope, true
-}
-
 // parseListFilter reads the query string. The service validates the values;
 // this only rejects inputs that cannot be parsed at all.
 func parseListFilter(r *http.Request) (ListFilter, error) {
+	limit, offset, err := httpx.ParsePagination(r, DefaultListLimit)
+	if err != nil {
+		return ListFilter{}, fmt.Errorf("%w: %w", ErrInvalidTask, err)
+	}
+
 	q := r.URL.Query()
-	filter := ListFilter{Limit: DefaultListLimit}
+	filter := ListFilter{Limit: limit, Offset: offset}
 
 	if raw := q.Get("project_id"); raw != "" {
 		id, err := uuid.Parse(raw)
@@ -101,37 +90,11 @@ func parseListFilter(r *http.Request) (ListFilter, error) {
 		filter.Status = &raw
 	}
 
-	if raw := q.Get("limit"); raw != "" {
-		limit, err := strconv.Atoi(raw)
-		if err != nil {
-			return ListFilter{}, fmt.Errorf("%w: limit must be an integer", ErrInvalidTask)
-		}
-		filter.Limit = limit
-	}
-
-	if raw := q.Get("offset"); raw != "" {
-		offset, err := strconv.Atoi(raw)
-		if err != nil {
-			return ListFilter{}, fmt.Errorf("%w: offset must be an integer", ErrInvalidTask)
-		}
-		filter.Offset = offset
-	}
-
 	return filter, nil
 }
 
-func parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, httpx.CodeInvalidID, "invalid ID: must be a valid UUID")
-		return uuid.Nil, false
-	}
-
-	return id, true
-}
-
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
-	scope, ok := callerScope(w, r)
+	scope, ok := authmiddleware.RequireScope(w, r)
 	if !ok {
 		return
 	}
@@ -153,7 +116,7 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
-	scope, ok := callerScope(w, r)
+	scope, ok := authmiddleware.RequireScope(w, r)
 	if !ok {
 		return
 	}
@@ -174,12 +137,12 @@ func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
-	scope, ok := callerScope(w, r)
+	scope, ok := authmiddleware.RequireScope(w, r)
 	if !ok {
 		return
 	}
 
-	id, ok := parseID(w, r)
+	id, ok := httpx.URLParamUUID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -194,12 +157,12 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
-	scope, ok := callerScope(w, r)
+	scope, ok := authmiddleware.RequireScope(w, r)
 	if !ok {
 		return
 	}
 
-	id, ok := parseID(w, r)
+	id, ok := httpx.URLParamUUID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -220,12 +183,12 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
-	scope, ok := callerScope(w, r)
+	scope, ok := authmiddleware.RequireScope(w, r)
 	if !ok {
 		return
 	}
 
-	id, ok := parseID(w, r)
+	id, ok := httpx.URLParamUUID(w, r, "id")
 	if !ok {
 		return
 	}
