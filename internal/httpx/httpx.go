@@ -11,12 +11,14 @@ const MaxBodyBytes = 1 << 20 // 1 MiB
 // Stable, client-facing error codes. Entity-specific codes (task_not_found,
 // email_already_exists, ...) are passed by the owning package.
 const (
-	CodeInvalidRequest = "invalid_request"
-	CodeInvalidID      = "invalid_id"
-	CodeValidation     = "validation_failed"
-	CodeUnauthorized   = "unauthorized"
-	CodeForbidden      = "forbidden"
-	CodeInternal       = "internal_error"
+	CodeInvalidRequest   = "invalid_request"
+	CodeInvalidID        = "invalid_id"
+	CodeValidation       = "validation_failed"
+	CodeUnauthorized     = "unauthorized"
+	CodeForbidden        = "forbidden"
+	CodeNotFound         = "not_found"
+	CodeMethodNotAllowed = "method_not_allowed"
+	CodeInternal         = "internal_error"
 )
 
 type errorEnvelope struct {
@@ -48,10 +50,6 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 // WriteError emits {"error":{"code":...,"message":...}}. The message is always
 // marshalled, never interpolated, so it stays valid JSON whatever it contains.
 func WriteError(w http.ResponseWriter, status int, code, message string) {
-	WriteJSONError(w, status, code, message)
-}
-
-func WriteJSONError(w http.ResponseWriter, status int, code, message string) {
 	body, err := json.Marshal(errorEnvelope{errorDetail{Code: code, Message: message}})
 	if err != nil {
 		slog.Error("marshal error body", "error", err)

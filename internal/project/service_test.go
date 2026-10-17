@@ -66,7 +66,7 @@ func TestCreateValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewService(&fakeRepo{}).Create(context.Background(), tt.owner, tt.input)
+			_, err := NewService(&fakeRepo{}).Create(context.Background(), authz.Scope{UserID: tt.owner}, tt.input)
 
 			if err == nil {
 				t.Fatal("got nil error, want a validation failure")
@@ -91,7 +91,7 @@ func TestOwnerIsForwardedToRepository(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		repo := &fakeRepo{}
-		if _, err := NewService(repo).Create(ctx, owner, CreateInput{Name: "P"}); err != nil {
+		if _, err := NewService(repo).Create(ctx, scope, CreateInput{Name: "P"}); err != nil {
 			t.Fatal(err)
 		}
 		if repo.createdOwner != owner {

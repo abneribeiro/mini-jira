@@ -24,8 +24,8 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Routes(db *pgxpool.Pool, jwtManager *jwt.Manager) chi.Router {
-	return routes(NewHandler(NewService(NewRepository(db))), jwtManager)
+func Routes(db *pgxpool.Pool, jwtManager *jwt.Manager, sessions SessionRevoker) chi.Router {
+	return routes(NewHandler(NewService(NewRepository(db), sessions)), jwtManager)
 }
 
 // routes is split out so tests can mount the same routing and middleware
@@ -68,9 +68,8 @@ func respondError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-// requireSelf enforces that a caller may only mutate their own account.
-// This is the check GetUserIDFromContext was written for and could never
-// perform while it asserted int64 against a uuid.UUID.
+// requireSelfOrAdmin enforces that a member may only mutate their own
+// account; an admin may act on any.
 func requireSelfOrAdmin(w http.ResponseWriter, r *http.Request, target uuid.UUID) bool {
 	scope, ok := authmiddleware.ScopeFromContext(r.Context())
 	if !ok {

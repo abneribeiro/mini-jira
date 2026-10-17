@@ -125,6 +125,8 @@ func (r *refreshRepository) RevokeFamily(ctx context.Context, familyID uuid.UUID
 	return nil
 }
 
+// RevokeAllForUser ends every session of a user. The user service calls it
+// after a password change, so a stolen refresh token stops working.
 func (r *refreshRepository) RevokeAllForUser(ctx context.Context, userID uuid.UUID) error {
 	defer metrics.ObserveQuery("update", "refresh_tokens")()
 

@@ -15,7 +15,6 @@ import (
 type contextKey string
 
 const UserIDKey contextKey = "userID"
-const UserEmailKey contextKey = "userEmail"
 const UserRoleKey contextKey = "userRole"
 
 const bearerPrefix = "Bearer "
@@ -51,7 +50,6 @@ func AuthMiddleware(jwtManager *jwt.Manager) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
-			ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
 			ctx = context.WithValue(ctx, UserRoleKey, claims.Role)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -62,11 +60,6 @@ func AuthMiddleware(jwtManager *jwt.Manager) func(http.Handler) http.Handler {
 func GetUserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	userID, ok := ctx.Value(UserIDKey).(uuid.UUID)
 	return userID, ok
-}
-
-func GetUserEmailFromContext(ctx context.Context) (string, bool) {
-	email, ok := ctx.Value(UserEmailKey).(string)
-	return email, ok
 }
 
 // GetUserRoleFromContext returns the role carried in the access token. A

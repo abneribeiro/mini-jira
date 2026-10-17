@@ -27,8 +27,8 @@ type stubService struct {
 	gotFilter ListFilter
 }
 
-func (s *stubService) Create(_ context.Context, ownerID uuid.UUID, _ CreateInput) (Project, error) {
-	s.gotOwner = ownerID
+func (s *stubService) Create(_ context.Context, scope authz.Scope, _ CreateInput) (Project, error) {
+	s.gotOwner, s.gotScope = scope.UserID, scope
 	return s.project, s.err
 }
 

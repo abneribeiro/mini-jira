@@ -17,12 +17,19 @@ type Service interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-type service struct {
-	repo Repository
+// SessionRevoker ends every refresh-token session of a user. It is declared
+// here rather than imported from auth, which already depends on this package.
+type SessionRevoker interface {
+	RevokeAllForUser(ctx context.Context, userID uuid.UUID) error
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+type service struct {
+	repo     Repository
+	sessions SessionRevoker
+}
+
+func NewService(repo Repository, sessions SessionRevoker) Service {
+	return &service{repo: repo, sessions: sessions}
 }
 
 func (s *service) Create(ctx context.Context, input CreateInput) (User, error) {
@@ -84,7 +91,22 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, input UpdateInput) (
 		input.Password = &hashedStr
 	}
 
-	return s.repo.Update(ctx, id, input)
+	updated, err := s.repo.Update(ctx, id, input)
+	if err != nil {
+		return User{}, err
+	}
+
+	// A new password must lock out whoever held the old one, so every
+	// refresh token is revoked. Access tokens still live out their short TTL.
+	// If this fails the password has already changed; the error surfaces as
+	// a 500 so the client retries, which revokes again.
+	if input.Password != nil {
+		if err := s.sessions.RevokeAllForUser(ctx, id); err != nil {
+			return User{}, fmt.Errorf("service.Update: revoke sessions after password change: %w", err)
+		}
+	}
+
+	return updated, nil
 }
 
 func (s *service) GetByID(ctx context.Context, id uuid.UUID) (User, error) {

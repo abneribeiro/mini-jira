@@ -161,16 +161,6 @@ func (s *Service) Logout(ctx context.Context, input RefreshInput) error {
 	return nil
 }
 
-// LogoutAll revokes every session for a user, used after a password change or
-// a suspected compromise.
-func (s *Service) LogoutAll(ctx context.Context, userID uuid.UUID) error {
-	if err := s.refreshRepo.RevokeAllForUser(ctx, userID); err != nil {
-		return fmt.Errorf("auth.LogoutAll: %w", err)
-	}
-
-	return nil
-}
-
 // issue mints an access token plus a refresh token in the given family.
 func (s *Service) issue(ctx context.Context, u user.User, familyID uuid.UUID) (LoginResponse, error) {
 	accessToken, err := s.jwtManager.GenerateToken(u.ID, u.Email, u.Role)

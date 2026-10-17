@@ -61,7 +61,7 @@ func respondError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-// callerID is the authenticated user. AuthMiddleware guarantees it is
+// callerScope is the authenticated user. AuthMiddleware guarantees it is
 // present on every route in this package; a miss means the route was mounted
 // without auth, which is a wiring bug, not a client error.
 func callerScope(w http.ResponseWriter, r *http.Request) (authz.Scope, bool) {

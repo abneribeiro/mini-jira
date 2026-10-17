@@ -28,6 +28,11 @@ type Deps struct {
 	DB        *pgxpool.Pool
 	JWTSecret string
 	Limiters  auth.Limiters
+
+	// TrustProxyHeaders mounts chi's RealIP. Leave it off unless a proxy that
+	// rewrites X-Forwarded-For sits in front: the login rate limiter keys on
+	// the client address, and a spoofable address is no limit at all.
+	TrustProxyHeaders bool
 }
 
 // New builds the public API. /metrics is deliberately NOT mounted here; it
@@ -36,11 +41,16 @@ func New(deps Deps) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	if deps.TrustProxyHeaders {
+		r.Use(middleware.RealIP)
+	}
 	r.Use(authmiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(authmiddleware.MetricsMiddleware)
+
+	r.NotFound(notFoundHandler)
+	r.MethodNotAllowed(methodNotAllowedHandler)
 
 	r.Get("/health", healthHandler(deps.DB))
 	r.Get("/livez", livezHandler)
@@ -54,7 +64,10 @@ func New(deps Deps) http.Handler {
 
 	// Mixed: POST /users is public registration, the rest are protected
 	// inside user.Routes.
-	r.Mount("/users", user.Routes(deps.DB, jwtManager))
+	// The refresh repository is handed to the user package as its
+	// SessionRevoker: a password change ends every session. Wiring it here
+	// keeps user from importing auth, which already imports user.
+	r.Mount("/users", user.Routes(deps.DB, jwtManager, auth.NewRefreshRepository(deps.DB)))
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
@@ -68,12 +81,15 @@ func New(deps Deps) http.Handler {
 
 // NewMetrics builds the private operator surface. It is served on its own
 // listener that the Compose file does not publish to the host, so the
-// exposition — route inventory, traffic volumes, Go runtime internals — is
+// exposition (route inventory, traffic volumes, Go runtime internals) is
 // reachable from Prometheus on the internal network and from nowhere else.
 func NewMetrics(db *pgxpool.Pool) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
+
+	r.NotFound(notFoundHandler)
+	r.MethodNotAllowed(methodNotAllowedHandler)
 
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 	r.Get("/health", healthHandler(db))
@@ -109,4 +125,15 @@ func healthHandler(db *pgxpool.Pool) http.HandlerFunc {
 // serve, regardless of dependencies.
 func livezHandler(w http.ResponseWriter, _ *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// notFoundHandler and methodNotAllowedHandler replace chi's text/plain
+// defaults, so every error the API emits uses the same JSON envelope.
+// Mounted sub-routers inherit them.
+func notFoundHandler(w http.ResponseWriter, _ *http.Request) {
+	httpx.WriteError(w, http.StatusNotFound, httpx.CodeNotFound, "route not found")
+}
+
+func methodNotAllowedHandler(w http.ResponseWriter, _ *http.Request) {
+	httpx.WriteError(w, http.StatusMethodNotAllowed, httpx.CodeMethodNotAllowed, "method not allowed")
 }

@@ -135,7 +135,10 @@ func (l *RateLimiter) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// clientIP prefers the address chi's RealIP middleware resolved.
+// clientIP keys the bucket on r.RemoteAddr. That is the TCP peer unless the
+// server mounts chi's RealIP (TRUST_PROXY_HEADERS=true), in which case it is
+// the address a trusted proxy reported. Trusting those headers without a
+// proxy in front would let any client pick a fresh bucket per request.
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

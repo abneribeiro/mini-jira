@@ -61,6 +61,17 @@ func (f *fakeRepo) Delete(_ context.Context, id uuid.UUID) error {
 	return f.deleteErr
 }
 
+// fakeSessions records which users had their sessions revoked.
+type fakeSessions struct {
+	revoked []uuid.UUID
+	err     error
+}
+
+func (f *fakeSessions) RevokeAllForUser(_ context.Context, userID uuid.UUID) error {
+	f.revoked = append(f.revoked, userID)
+	return f.err
+}
+
 func validCreate() CreateInput {
 	return CreateInput{Name: "Valid Name", Email: "valid@example.com", Password: "password123"}
 }
@@ -92,7 +103,7 @@ func TestCreateValidation(t *testing.T) {
 			input := validCreate()
 			tt.mutate(&input)
 
-			_, err := NewService(&fakeRepo{}).Create(context.Background(), input)
+			_, err := NewService(&fakeRepo{}, &fakeSessions{}).Create(context.Background(), input)
 
 			if !tt.wantErr {
 				if err != nil {
@@ -119,7 +130,7 @@ func TestCreateNormalizesEmailAndHashesPassword(t *testing.T) {
 	input := validCreate()
 	input.Email = "  Alice@EXAMPLE.com  "
 
-	if _, err := NewService(repo).Create(context.Background(), input); err != nil {
+	if _, err := NewService(repo, &fakeSessions{}).Create(context.Background(), input); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -142,7 +153,7 @@ func TestCreateNormalizesEmailAndHashesPassword(t *testing.T) {
 func TestCreatePropagatesDuplicateEmail(t *testing.T) {
 	repo := &fakeRepo{createErr: ErrEmailAlreadyExists}
 
-	_, err := NewService(repo).Create(context.Background(), validCreate())
+	_, err := NewService(repo, &fakeSessions{}).Create(context.Background(), validCreate())
 
 	if !errors.Is(err, ErrEmailAlreadyExists) {
 		t.Fatalf("errors.Is(err, ErrEmailAlreadyExists) = false, err = %v", err)
@@ -167,7 +178,7 @@ func TestUpdateValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewService(&fakeRepo{}).Update(context.Background(), uuid.New(), tt.input)
+			_, err := NewService(&fakeRepo{}, &fakeSessions{}).Update(context.Background(), uuid.New(), tt.input)
 
 			if err == nil {
 				t.Fatal("got nil error, want a validation failure")
@@ -187,7 +198,7 @@ func TestUpdateNormalizesAndHashes(t *testing.T) {
 	email := "  Bob@EXAMPLE.com "
 	password := "newpassword1"
 
-	_, err := NewService(repo).Update(context.Background(), uuid.New(), UpdateInput{
+	_, err := NewService(repo, &fakeSessions{}).Update(context.Background(), uuid.New(), UpdateInput{
 		Email:    &email,
 		Password: &password,
 	})
@@ -207,7 +218,7 @@ func TestUpdatePropagatesNotFound(t *testing.T) {
 	repo := &fakeRepo{updateErr: ErrUserNotFound}
 	name := "Whoever"
 
-	_, err := NewService(repo).Update(context.Background(), uuid.New(), UpdateInput{Name: &name})
+	_, err := NewService(repo, &fakeSessions{}).Update(context.Background(), uuid.New(), UpdateInput{Name: &name})
 
 	// The old service wrapped this as "failed to save user: ...", which broke
 	// the handler's not-found detection and produced a 400 instead of a 404.
@@ -217,7 +228,7 @@ func TestUpdatePropagatesNotFound(t *testing.T) {
 }
 
 func TestNilIDRejected(t *testing.T) {
-	svc := NewService(&fakeRepo{})
+	svc := NewService(&fakeRepo{}, &fakeSessions{})
 	ctx := context.Background()
 
 	if _, err := svc.GetByID(ctx, uuid.Nil); !errors.Is(err, ErrInvalidUser) {
@@ -228,5 +239,57 @@ func TestNilIDRejected(t *testing.T) {
 	}
 	if err := svc.Delete(ctx, uuid.Nil); !errors.Is(err, ErrInvalidUser) {
 		t.Errorf("Delete(uuid.Nil) = %v, want ErrInvalidUser", err)
+	}
+}
+
+func TestPasswordChangeRevokesSessions(t *testing.T) {
+	sessions := &fakeSessions{}
+	id := uuid.New()
+	password := "newpassword1"
+
+	if _, err := NewService(&fakeRepo{}, sessions).Update(context.Background(), id, UpdateInput{Password: &password}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	if len(sessions.revoked) != 1 || sessions.revoked[0] != id {
+		t.Errorf("revoked %v, want exactly [%v]", sessions.revoked, id)
+	}
+}
+
+func TestProfileUpdateKeepsSessions(t *testing.T) {
+	sessions := &fakeSessions{}
+	name := "New Name"
+
+	if _, err := NewService(&fakeRepo{}, sessions).Update(context.Background(), uuid.New(), UpdateInput{Name: &name}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	if len(sessions.revoked) != 0 {
+		t.Errorf("a name-only update revoked sessions: %v", sessions.revoked)
+	}
+}
+
+// A failed write must not log the user out: nothing changed.
+func TestFailedPasswordUpdateKeepsSessions(t *testing.T) {
+	sessions := &fakeSessions{}
+	password := "newpassword1"
+
+	_, err := NewService(&fakeRepo{updateErr: ErrUserNotFound}, sessions).Update(context.Background(), uuid.New(), UpdateInput{Password: &password})
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("err = %v, want ErrUserNotFound", err)
+	}
+
+	if len(sessions.revoked) != 0 {
+		t.Errorf("sessions revoked after a failed update: %v", sessions.revoked)
+	}
+}
+
+func TestPasswordChangeSurfacesRevocationFailure(t *testing.T) {
+	errRevoke := errors.New("revoke failed")
+	password := "newpassword1"
+
+	_, err := NewService(&fakeRepo{}, &fakeSessions{err: errRevoke}).Update(context.Background(), uuid.New(), UpdateInput{Password: &password})
+	if !errors.Is(err, errRevoke) {
+		t.Fatalf("err = %v, want the revocation failure", err)
 	}
 }

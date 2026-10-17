@@ -9,7 +9,7 @@ import (
 )
 
 type Service interface {
-	Create(ctx context.Context, ownerID uuid.UUID, input CreateInput) (Project, error)
+	Create(ctx context.Context, scope authz.Scope, input CreateInput) (Project, error)
 	GetByID(ctx context.Context, id uuid.UUID, scope authz.Scope) (Project, error)
 	List(ctx context.Context, scope authz.Scope, filter ListFilter) ([]Project, error)
 	Update(ctx context.Context, id uuid.UUID, scope authz.Scope, input UpdateInput) (Project, error)
@@ -24,8 +24,10 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) Create(ctx context.Context, ownerID uuid.UUID, input CreateInput) (Project, error) {
-	if ownerID == uuid.Nil {
+// Create makes the caller the owner. An admin creating a project owns it too:
+// the scope decides who may read rows, not whose name goes on a new one.
+func (s *service) Create(ctx context.Context, scope authz.Scope, input CreateInput) (Project, error) {
+	if scope.UserID == uuid.Nil {
 		return Project{}, fmt.Errorf("%w: owner is required", ErrInvalidProject)
 	}
 
@@ -42,7 +44,7 @@ func (s *service) Create(ctx context.Context, ownerID uuid.UUID, input CreateInp
 		return Project{}, fmt.Errorf("service.Create: generate uuid: %w", err)
 	}
 
-	return s.repo.Create(ctx, newID, ownerID, input)
+	return s.repo.Create(ctx, newID, scope.UserID, input)
 }
 
 func (s *service) GetByID(ctx context.Context, id uuid.UUID, scope authz.Scope) (Project, error) {

@@ -20,9 +20,9 @@ var (
 )
 
 const (
-	maxNameLen     = 50
-	maxEmailLen    = 200
-	minPasswordLen = 8
+	maxNameLen       = 50
+	maxEmailLen      = 200
+	minPasswordLen   = 8
 	maxPasswordBytes = 72
 	DefaultListLimit = 50
 	MaxListLimit     = 200
