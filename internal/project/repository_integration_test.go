@@ -94,7 +94,7 @@ func TestRepositoryListIsScopedAndPaginated(t *testing.T) {
 	owner := seedUser(t, db)
 	other := seedUser(t, db)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if _, err := repo.Create(ctx, uuid.New(), owner, CreateInput{Name: "Mine"}); err != nil {
 			t.Fatalf("seed: %v", err)
 		}

@@ -111,21 +111,24 @@ func run() error {
 		}
 	}()
 
+	var listenErr error
 	select {
-	case err := <-serveErr:
+	case listenErr = <-serveErr:
 		// Release the workers too, or the deferred Wait would block forever.
+		// The other listener may still be serving, so it is drained below
+		// before the pool closes.
 		stop()
-		return err
+		slog.Error("listener failed, shutting down", "error", listenErr)
 	case <-ctx.Done():
 		slog.Info("shutdown signal received, draining in-flight requests")
 	}
 
-	// A fresh context: the signal already cancelled ctx, so reusing it would
-	// abort the drain immediately.
+	// A fresh context: ctx is already cancelled, so reusing it would abort
+	// the drain immediately.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
-	return shutdownAll(shutdownCtx, apiSrv, metricsSrv)
+	return errors.Join(listenErr, shutdownAll(shutdownCtx, apiSrv, metricsSrv))
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
@@ -147,15 +150,13 @@ func shutdownAll(ctx context.Context, servers ...*http.Server) error {
 	)
 
 	for _, srv := range servers {
-		wg.Add(1)
-		go func(srv *http.Server) {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := srv.Shutdown(ctx); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-		}(srv)
+		})
 	}
 
 	wg.Wait()

@@ -134,7 +134,7 @@ func TestRepositoryListPagination(t *testing.T) {
 	repo := NewRepository(testdb.Pool(t))
 	ctx := testdb.Context(t)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		createUser(t, repo)
 	}
 

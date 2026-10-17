@@ -247,7 +247,7 @@ func TestRepositoryListFilters(t *testing.T) {
 	projectB := seedProject(t, db, owner)
 	scope := authz.Scope{UserID: owner}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if _, err := repo.Create(ctx, uuid.New(), scope, CreateInput{Title: "A", ProjectID: projectA, AssigneeID: &owner}); err != nil {
 			t.Fatalf("seed task: %v", err)
 		}
