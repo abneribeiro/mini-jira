@@ -90,4 +90,3 @@ mini-jira/
 - **No CORS, no audit log.** Role changes and deletions are visible only in the application logs.
 - **Offset pagination.** It is simple and bounded at 200 rows per page, but deep offsets get slower; keyset pagination would scale better.
 - **chi's timeout and recoverer middleware** answer `504` and `500` without the JSON envelope in the rare cases they fire.
-- **The Go module path is `github.com/abneribeiro`**, without a repository segment, so imports read `github.com/abneribeiro/internal/...`.

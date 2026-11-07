@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abneribeiro/internal/authz"
+	"github.com/abneribeiro/mini-jira/internal/authz"
 	"github.com/google/uuid"
 )
 

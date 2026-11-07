@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/abneribeiro/internal/authz"
-	"github.com/abneribeiro/internal/testdb"
+	"github.com/abneribeiro/mini-jira/internal/authz"
+	"github.com/abneribeiro/mini-jira/internal/testdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

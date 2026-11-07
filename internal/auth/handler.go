@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/abneribeiro/internal/httpx"
-	"github.com/abneribeiro/internal/jwt"
-	authmiddleware "github.com/abneribeiro/internal/middleware"
-	"github.com/abneribeiro/internal/user"
+	"github.com/abneribeiro/mini-jira/internal/httpx"
+	"github.com/abneribeiro/mini-jira/internal/jwt"
+	authmiddleware "github.com/abneribeiro/mini-jira/internal/middleware"
+	"github.com/abneribeiro/mini-jira/internal/user"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

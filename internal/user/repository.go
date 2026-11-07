@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/abneribeiro/internal/database"
-	"github.com/abneribeiro/internal/metrics"
+	"github.com/abneribeiro/mini-jira/internal/database"
+	"github.com/abneribeiro/mini-jira/internal/metrics"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

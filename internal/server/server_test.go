@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abneribeiro/internal/auth"
-	"github.com/abneribeiro/internal/httpx/httpxtest"
-	"github.com/abneribeiro/internal/jwt"
-	authmiddleware "github.com/abneribeiro/internal/middleware"
-	"github.com/abneribeiro/internal/testdb"
+	"github.com/abneribeiro/mini-jira/internal/auth"
+	"github.com/abneribeiro/mini-jira/internal/httpx/httpxtest"
+	"github.com/abneribeiro/mini-jira/internal/jwt"
+	authmiddleware "github.com/abneribeiro/mini-jira/internal/middleware"
+	"github.com/abneribeiro/mini-jira/internal/testdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

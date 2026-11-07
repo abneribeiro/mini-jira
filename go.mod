@@ -1,4 +1,4 @@
-module github.com/abneribeiro
+module github.com/abneribeiro/mini-jira
 
 go 1.27.1
 

@@ -18,8 +18,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
-	"github.com/abneribeiro/internal/config"
-	"github.com/abneribeiro/internal/migrations"
+	"github.com/abneribeiro/mini-jira/internal/config"
+	"github.com/abneribeiro/mini-jira/internal/migrations"
 )
 
 var allowedCommands = map[string]bool{
