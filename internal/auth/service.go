@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/abneribeiro/internal/jwt"
-	"github.com/abneribeiro/internal/metrics"
-	"github.com/abneribeiro/internal/user"
+	"github.com/abneribeiro/mini-jira/internal/jwt"
+	"github.com/abneribeiro/mini-jira/internal/metrics"
+	"github.com/abneribeiro/mini-jira/internal/user"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )

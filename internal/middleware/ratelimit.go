@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/abneribeiro/internal/httpx"
+	"github.com/abneribeiro/mini-jira/internal/httpx"
 )
 
 // RateLimitConfig describes a token bucket applied per client key.

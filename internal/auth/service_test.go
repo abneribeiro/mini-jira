@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abneribeiro/internal/jwt"
-	"github.com/abneribeiro/internal/user"
+	"github.com/abneribeiro/mini-jira/internal/jwt"
+	"github.com/abneribeiro/mini-jira/internal/user"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )

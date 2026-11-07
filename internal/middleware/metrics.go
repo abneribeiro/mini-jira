@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/abneribeiro/internal/metrics"
+	"github.com/abneribeiro/mini-jira/internal/metrics"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )

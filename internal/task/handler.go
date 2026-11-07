@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/abneribeiro/internal/httpx"
-	authmiddleware "github.com/abneribeiro/internal/middleware"
+	"github.com/abneribeiro/mini-jira/internal/httpx"
+	authmiddleware "github.com/abneribeiro/mini-jira/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

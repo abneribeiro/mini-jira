@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/abneribeiro/internal/authz"
-	"github.com/abneribeiro/internal/httpx"
-	"github.com/abneribeiro/internal/jwt"
+	"github.com/abneribeiro/mini-jira/internal/authz"
+	"github.com/abneribeiro/mini-jira/internal/httpx"
+	"github.com/abneribeiro/mini-jira/internal/jwt"
 	"github.com/google/uuid"
 )
 

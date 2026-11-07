@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abneribeiro/internal/authz"
-	"github.com/abneribeiro/internal/httpx/httpxtest"
-	"github.com/abneribeiro/internal/jwt"
-	authmiddleware "github.com/abneribeiro/internal/middleware"
+	"github.com/abneribeiro/mini-jira/internal/authz"
+	"github.com/abneribeiro/mini-jira/internal/httpx/httpxtest"
+	"github.com/abneribeiro/mini-jira/internal/jwt"
+	authmiddleware "github.com/abneribeiro/mini-jira/internal/middleware"
 	"github.com/google/uuid"
 )
 

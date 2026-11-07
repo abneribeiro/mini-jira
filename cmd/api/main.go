@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/abneribeiro/internal/auth"
-	"github.com/abneribeiro/internal/config"
-	"github.com/abneribeiro/internal/database"
-	"github.com/abneribeiro/internal/metrics"
-	authmiddleware "github.com/abneribeiro/internal/middleware"
-	"github.com/abneribeiro/internal/server"
+	"github.com/abneribeiro/mini-jira/internal/auth"
+	"github.com/abneribeiro/mini-jira/internal/config"
+	"github.com/abneribeiro/mini-jira/internal/database"
+	"github.com/abneribeiro/mini-jira/internal/metrics"
+	authmiddleware "github.com/abneribeiro/mini-jira/internal/middleware"
+	"github.com/abneribeiro/mini-jira/internal/server"
 )
 
 const (

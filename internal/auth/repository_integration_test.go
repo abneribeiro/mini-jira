@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abneribeiro/internal/testdb"
+	"github.com/abneribeiro/mini-jira/internal/testdb"
 	"github.com/google/uuid"
 )
 

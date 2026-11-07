@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abneribeiro/internal/httpx/httpxtest"
-	authmiddleware "github.com/abneribeiro/internal/middleware"
-	"github.com/abneribeiro/internal/user"
+	"github.com/abneribeiro/mini-jira/internal/httpx/httpxtest"
+	authmiddleware "github.com/abneribeiro/mini-jira/internal/middleware"
+	"github.com/abneribeiro/mini-jira/internal/user"
 )
 
 // testHandler mounts the real routing over a Service backed by the in-memory
